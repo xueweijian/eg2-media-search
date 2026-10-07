@@ -113,6 +113,7 @@ fun EG2App() {
             ) {
             when (tab) {
                 0 -> SearchHome()
+                1 -> VideosScreen()
                 3 -> DocsScreen()
                 else -> ComingSoon(tabs[tab].label)
             }
@@ -406,17 +407,21 @@ private fun hasMediaPermission(context: android.content.Context): Boolean {
 }
 
 private fun scheduleIndexing(context: android.content.Context) {
-    val req = OneTimeWorkRequestBuilder<ImageIndexWorker>()
-        .setConstraints(
-            Constraints.Builder()
-                .setRequiresCharging(true)
-                .setRequiresBatteryNotLow(true)
-                .build()
-        )
+    val wm = WorkManager.getInstance(context)
+    val constraints = Constraints.Builder()
+        .setRequiresCharging(true)
+        .setRequiresBatteryNotLow(true)
         .build()
-    WorkManager.getInstance(context).enqueueUniqueWork(
+    wm.enqueueUniqueWork(
         ImageIndexWorker.UNIQUE_NAME,
         ExistingWorkPolicy.KEEP,
-        req,
+        OneTimeWorkRequestBuilder<ImageIndexWorker>().setConstraints(constraints).build(),
+    )
+    wm.enqueueUniqueWork(
+        com.xueweijian.eg2media.index.VideoIndexWorker.UNIQUE_NAME,
+        ExistingWorkPolicy.KEEP,
+        OneTimeWorkRequestBuilder<com.xueweijian.eg2media.index.VideoIndexWorker>()
+            .setConstraints(constraints)
+            .build(),
     )
 }

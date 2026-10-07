@@ -13,6 +13,16 @@ data class MediaImage(
     val mimeType: String,
 )
 
+data class MediaVideo(
+    val id: Long,
+    val uri: Uri,
+    val displayName: String,
+    val durationMs: Long,
+    val dateModifiedMs: Long,
+    val sizeBytes: Long,
+    val mimeType: String,
+)
+
 /** 素材接入层（HANDOFF §4）：图片/视频走 MediaStore，ContentObserver 增量后置 */
 object MediaStoreRepo {
 
@@ -44,6 +54,45 @@ object MediaStoreRepo {
                         dateModifiedMs = c.getLong(dateCol) * 1000,
                         sizeBytes = c.getLong(sizeCol),
                         mimeType = c.getString(mimeCol) ?: "image/jpeg",
+                    )
+                )
+            }
+        }
+        return out
+    }
+
+    fun queryVideos(context: Context): List<MediaVideo> {
+        val projection = arrayOf(
+            MediaStore.Video.Media._ID,
+            MediaStore.Video.Media.DISPLAY_NAME,
+            MediaStore.Video.Media.DURATION,
+            MediaStore.Video.Media.DATE_MODIFIED,
+            MediaStore.Video.Media.SIZE,
+            MediaStore.Video.Media.MIME_TYPE,
+        )
+        val collection = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        val out = mutableListOf<MediaVideo>()
+        context.contentResolver.query(
+            collection, projection, null, null,
+            "${MediaStore.Video.Media.DATE_MODIFIED} DESC",
+        )?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+            val nameCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
+            val durCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
+            val dateCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_MODIFIED)
+            val sizeCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
+            val mimeCol = c.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
+            while (c.moveToNext()) {
+                val id = c.getLong(idCol)
+                out.add(
+                    MediaVideo(
+                        id = id,
+                        uri = ContentUris.withAppendedId(collection, id),
+                        displayName = c.getString(nameCol) ?: "video$id",
+                        durationMs = c.getLong(durCol),
+                        dateModifiedMs = c.getLong(dateCol) * 1000,
+                        sizeBytes = c.getLong(sizeCol),
+                        mimeType = c.getString(mimeCol) ?: "video/mp4",
                     )
                 )
             }
