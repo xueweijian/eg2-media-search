@@ -4,11 +4,9 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.xueweijian.eg2media.core.HitMerge
-import com.xueweijian.eg2media.core.Mrl
 import com.xueweijian.eg2media.embed.EmbedderManager
 import com.xueweijian.eg2media.media.ImageLoader
-import com.xueweijian.eg2media.store.RetrievalStore
+import com.xueweijian.eg2media.search.SearchEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,7 +48,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
 
     private val queryInput = MutableStateFlow("")
 
-    private var store: RetrievalStore? = null
+    private var engine: SearchEngine? = null
 
     init {
         queryInput
@@ -123,29 +121,22 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 768d 向量 → 512d 截断 → top-k → 合并 → 带 uri 的结果 */
+    /** 768d 向量 → 共享 SearchEngine 管道（512d 截断 → top-k → 合并 → uri 结果） */
     private suspend fun searchByVector(
         vec768: FloatArray,
         excludeUri: String?,
     ): List<SearchResult> {
         val ctx = getApplication<Application>()
-        val q512 = Mrl.truncateAndRenormalize(vec768, RetrievalStore.DEFAULT_DIMS)
-        val s = store ?: RetrievalStore(ctx).also { store = it }
-        val hits = s.search(q512, topK = 24)
-        val merged = HitMerge.merge(hits)
-        return merged.mapNotNull { h ->
-            val meta = s.getMeta(listOf(h.recordId)).firstOrNull()
-            val uri = meta?.get("uri")
-            when {
-                uri.isNullOrBlank() -> null
-                uri == excludeUri -> null // 图搜图排除自身
-                else -> SearchResult(uri, h.score, h.modality.code)
-            }
+        val e = engine ?: SearchEngine(ctx).also { engine = it }
+        return e.query(vec768, topK = 24, excludeUri = excludeUri).mapNotNull { mh ->
+            val uri = mh.meta["uri"]
+            if (uri.isNullOrBlank()) null
+            else SearchResult(uri, mh.hit.score, mh.hit.modality.code)
         }
     }
 
     override fun onCleared() {
-        store?.close()
+        engine?.close()
         EmbedderManager.release()
         super.onCleared()
     }

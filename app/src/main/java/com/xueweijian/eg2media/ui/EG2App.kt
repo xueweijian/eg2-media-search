@@ -111,7 +111,11 @@ fun EG2App() {
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                if (tab == 0) SearchHome() else ComingSoon(tabs[tab].label)
+            when (tab) {
+                0 -> SearchHome()
+                3 -> DocsScreen()
+                else -> ComingSoon(tabs[tab].label)
+            }
             }
         }
     }

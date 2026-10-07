@@ -71,7 +71,8 @@ class RetrievalStore(
     fun delete(ids: List<String>) = store.delete(ids)
 
     fun deleteBySource(sourceId: String, modality: Modality) {
-        store.delete(mapOf("src" to sourceId, "mod" to modality.code))
+        // upsert 时 meta["uri"]=sourceId（文档场景 uri 即 sourceId）
+        store.delete(mapOf("uri" to sourceId, "mod" to modality.code))
     }
 
     override fun close() = store.close()

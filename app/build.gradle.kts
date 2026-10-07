@@ -65,6 +65,9 @@ dependencies {
     // 后台索引（HANDOFF §3/§4：充电+空闲约束、断点续跑）
     implementation("androidx.work:work-runtime-ktx:2.10.1")
 
+    // 文档模态：ML Kit 中文 OCR（bundled 离线，国内无 GMS 也可用）
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+
     // 纯 JVM 单测（core 包第一性原子层，TDD）
     testImplementation("junit:junit:4.13.2")
 }
