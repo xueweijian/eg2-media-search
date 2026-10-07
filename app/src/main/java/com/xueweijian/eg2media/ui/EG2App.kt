@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -134,6 +135,11 @@ private fun SearchHome(
     ) { grants ->
         hasPermission = grants.values.all { it }
     }
+    val pickMedia = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) vm.searchByImage(uri)
+    }
     LaunchedEffect(Unit) { setupVm.refresh() }
 
     // 模型就绪 + 有权限 → 自动开始索引（幂等，KEEP 策略）
@@ -184,7 +190,18 @@ private fun SearchHome(
 
             !setup.modelReady -> DownloadCard(setupVm = setupVm)
 
-            else -> IndexProgressRow(setup.index)
+            else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                IndexProgressRow(setup.index)
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = {
+                        pickMedia.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                ) {
+                    Text("📷 以图搜图")
+                }
+            }
         }
 
         if (hasPermission && setup.modelReady &&

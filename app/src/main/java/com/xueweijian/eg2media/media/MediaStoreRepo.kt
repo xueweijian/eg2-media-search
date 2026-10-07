@@ -50,4 +50,26 @@ object MediaStoreRepo {
         }
         return out
     }
+
+    /** 单条查询（增量索引用：ContentObserver 变更 uri 的 lastPathSegment = MediaStore id） */
+    fun queryImageById(context: Context, id: Long): MediaImage? {
+        val uri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+        val projection = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.DATE_MODIFIED,
+            MediaStore.Images.Media.SIZE,
+            MediaStore.Images.Media.MIME_TYPE,
+        )
+        context.contentResolver.query(uri, projection, null, null, null)?.use { c ->
+            if (!c.moveToFirst()) return null
+            return MediaImage(
+                id = c.getLong(0),
+                uri = uri,
+                dateModifiedMs = c.getLong(1) * 1000,
+                sizeBytes = c.getLong(2),
+                mimeType = c.getString(3) ?: "image/jpeg",
+            )
+        }
+        return null
+    }
 }

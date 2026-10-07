@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.xueweijian.eg2media.core.HitMerge
 import com.xueweijian.eg2media.core.Mrl
 import com.xueweijian.eg2media.embed.EmbedderManager
+import com.xueweijian.eg2media.media.ImageLoader
 import com.xueweijian.eg2media.store.RetrievalStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class SearchUiState(
@@ -86,21 +88,61 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
             if (!EmbedderManager.isModelReady(ctx)) return@withContext emptyList()
             runCatching {
                 val qVec = EmbedderManager.embedQuery(ctx, q)
-                val q512 = Mrl.truncateAndRenormalize(qVec, RetrievalStore.DEFAULT_DIMS)
-                val s = store ?: RetrievalStore(ctx).also { store = it }
-                val hits = s.search(q512, topK = 24)
-                val merged = HitMerge.merge(hits)
-                merged.mapNotNull { h ->
-                    val meta = s.getMeta(listOf(h.recordId)).firstOrNull()
-                    val uri = meta?.get("uri")
-                    if (uri.isNullOrBlank()) null
-                    else SearchResult(uri, h.score, h.modality.code)
-                }
+                searchByVector(qVec, excludeUri = null)
             }.getOrElse { e ->
                 _state.value = _state.value.copy(error = e.message)
                 emptyList()
             }
         }
+
+    /** 图搜图：PhotoPicker 选图 → 视觉塔 → 最近邻（排除自身） */
+    fun searchByImage(uri: android.net.Uri) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(loading = true, error = null)
+            val res = withContext(Dispatchers.IO) {
+                val ctx = getApplication<Application>()
+                if (!EmbedderManager.isModelReady(ctx)) {
+                    _state.value = _state.value.copy(loading = false, error = "索引引擎未就绪")
+                    return@withContext emptyList()
+                }
+                runCatching {
+                    val bmp = ImageLoader.decode(ctx, uri, targetEdge = 768)
+                        ?: error("无法读取所选图片")
+                    val vec = try {
+                        EmbedderManager.embedImage(ctx, bmp)
+                    } finally {
+                        bmp.recycle()
+                    }
+                    searchByVector(vec, excludeUri = uri.toString())
+                }.getOrElse { e ->
+                    _state.value = _state.value.copy(loading = false, error = e.message)
+                    emptyList()
+                }
+            }
+            _state.value = _state.value.copy(loading = false, results = res)
+        }
+    }
+
+    /** 768d 向量 → 512d 截断 → top-k → 合并 → 带 uri 的结果 */
+    private suspend fun searchByVector(
+        vec768: FloatArray,
+        excludeUri: String?,
+    ): List<SearchResult> {
+        val ctx = getApplication<Application>()
+        val q512 = Mrl.truncateAndRenormalize(vec768, RetrievalStore.DEFAULT_DIMS)
+        val s = store ?: RetrievalStore(ctx).also { store = it }
+        val hits = s.search(q512, topK = 24)
+        val merged = HitMerge.merge(hits)
+        return merged.mapNotNull { h ->
+            val meta = s.getMeta(listOf(h.recordId)).firstOrNull()
+            val uri = meta?.get("uri")
+            when {
+                uri.isNullOrBlank() -> null
+                uri == excludeUri -> null // 图搜图排除自身
+                else -> SearchResult(uri, h.score, h.modality.code)
+            }
+        }
+    }
 
     override fun onCleared() {
         store?.close()
