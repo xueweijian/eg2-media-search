@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 极简四角星（sparkle）图标，呼应 Gemini 式 AI 时刻语言 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="0.5" android:scaleY="0.5" android:pivotX="54" android:pivotY="54">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,18 C56,40 68,52 90,54 C68,56 56,68 54,90 C52,68 40,56 18,54 C40,52 52,40 54,18 Z" />
+        <path
+            android:fillColor="#D3E3FD"
+            android:pathData="M80,20 C81,28 85,32 93,33 C85,34 81,38 80,46 C79,38 75,34 67,33 C75,32 79,28 80,20 Z" />
+    </group>
+</vector>
