@@ -63,8 +63,8 @@ class SetupViewModel(app: Application) : AndroidViewModel(app) {
                             totalBytes = s.totalBytes,
                             host = s.sourceHost,
                         )
-                        is ModelDownloader.State.Done -> DownloadUi(done = true),
-                        is ModelDownloader.State.Failed -> DownloadUi(failed = s.reason),
+                        is ModelDownloader.State.Done -> DownloadUi(done = true)
+                        is ModelDownloader.State.Failed -> DownloadUi(failed = s.reason)
                     }
                 )
             }
