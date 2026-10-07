@@ -33,11 +33,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        // Kotlin 2.4：kotlinOptions DSL 已移除，改用 compilerOptions
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
@@ -57,6 +61,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.1")
+
+    // 后台索引（HANDOFF §3/§4：充电+空闲约束、断点续跑）
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     // 纯 JVM 单测（core 包第一性原子层，TDD）
     testImplementation("junit:junit:4.13.2")
