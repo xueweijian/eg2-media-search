@@ -17,7 +17,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AudioTrack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayCircle
@@ -70,6 +70,7 @@ private val tabs = listOf(
     TabSpec("图片"), TabSpec("视频"), TabSpec("音频"), TabSpec("文档"),
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EG2App() {
     EG2MediaTheme {
@@ -89,7 +90,7 @@ fun EG2App() {
                                     when (i) {
                                         0 -> Icons.Filled.Image
                                         1 -> Icons.Filled.PlayCircle
-                                        2 -> Icons.Filled.AudioTrack
+                                        2 -> Icons.Filled.PlayArrow
                                         else -> Icons.Filled.Description
                                     },
                                     contentDescription = spec.label,

@@ -1,37 +1,20 @@
 package com.xueweijian.eg2media.ui.theme
 
 import androidx.compose.material3.Typography
-import androidx.compose.ui.text.FontVariation
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.xueweijian.eg2media.R
 
 /**
- * Nunito 变量字体（单文件全字重，OFL，gallery 同款 HANDOFF §6.2）。
- * 中文回退系统 Noto Sans SC。
+ * Nunito 变量字体（OFL，gallery 同款 HANDOFF §6.2）。
+ * 同一 ttf 资源声明多字重，系统按 wght 轴渲染实例；中文回退 Noto Sans SC。
  */
 val appFontFamily = FontFamily(
-    Font(
-        R.font.nunito_variable,
-        weight = FontWeight.Normal,
-        variationSettings = FontVariation.Settings(FontVariation.weight(400)),
-    ),
-    Font(
-        R.font.nunito_variable,
-        weight = FontWeight.Medium,
-        variationSettings = FontVariation.Settings(FontVariation.weight(500)),
-    ),
-    Font(
-        R.font.nunito_variable,
-        weight = FontWeight.SemiBold,
-        variationSettings = FontVariation.Settings(FontVariation.weight(600)),
-    ),
-    Font(
-        R.font.nunito_variable,
-        weight = FontWeight.Bold,
-        variationSettings = FontVariation.Settings(FontVariation.weight(700)),
-    ),
+    Font(R.font.nunito_variable, FontWeight.Normal),
+    Font(R.font.nunito_variable, FontWeight.Medium),
+    Font(R.font.nunito_variable, FontWeight.SemiBold),
+    Font(R.font.nunito_variable, FontWeight.Bold),
 )
 
 private val baseline = Typography()

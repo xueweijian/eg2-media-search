@@ -91,8 +91,8 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
                 val hits = s.search(q512, topK = 24)
                 val merged = HitMerge.merge(hits)
                 merged.mapNotNull { h ->
-                    val rec = s.get(listOf(h.recordId)).firstOrNull()
-                    val uri = rec?.metadata?.get("uri")
+                    val meta = s.getMeta(listOf(h.recordId)).firstOrNull()
+                    val uri = meta?.get("uri")
                     if (uri.isNullOrBlank()) null
                     else SearchResult(uri, h.score, h.modality.code)
                 }
