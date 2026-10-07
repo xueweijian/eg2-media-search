@@ -25,7 +25,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -59,6 +61,7 @@ import androidx.work.WorkManager
 import com.xueweijian.eg2media.index.ImageIndexWorker
 import com.xueweijian.eg2media.media.ImageLoader
 import com.xueweijian.eg2media.ui.search.SearchViewModel
+import com.xueweijian.eg2media.ui.setup.SetupViewModel
 import com.xueweijian.eg2media.ui.theme.EG2MediaTheme
 import com.xueweijian.eg2media.ui.theme.geminiGradient
 import androidx.compose.foundation.Image
@@ -115,9 +118,13 @@ fun EG2App() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SearchHome(vm: SearchViewModel = viewModel()) {
+private fun SearchHome(
+    vm: SearchViewModel = viewModel(),
+    setupVm: SetupViewModel = viewModel(),
+) {
     val context = LocalContext.current
     val ui by vm.state.collectAsStateWithLifecycle()
+    val setup by setupVm.state.collectAsStateWithLifecycle()
     var hasPermission by remember {
         mutableStateOf(hasMediaPermission(context))
     }
@@ -126,9 +133,13 @@ private fun SearchHome(vm: SearchViewModel = viewModel()) {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
         hasPermission = grants.values.all { it }
-        if (hasPermission) scheduleIndexing(context)
     }
-    LaunchedEffect(Unit) { vm.refreshModelStatus() }
+    LaunchedEffect(Unit) { setupVm.refresh() }
+
+    // 模型就绪 + 有权限 → 自动开始索引（幂等，KEEP 策略）
+    LaunchedEffect(setup.modelReady, hasPermission) {
+        if (setup.modelReady && hasPermission) scheduleIndexing(context)
+    }
 
     Column(
         Modifier
@@ -140,7 +151,7 @@ private fun SearchHome(vm: SearchViewModel = viewModel()) {
             value = ui.query,
             onValueChange = vm::onQueryChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("搜索你的相册…") },
+            placeholder = { Text(if (setup.modelReady) "搜索你的相册…" else "先准备索引引擎…") },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             trailingIcon = {
                 if (ui.loading) {
@@ -150,7 +161,7 @@ private fun SearchHome(vm: SearchViewModel = viewModel()) {
             },
             shape = RoundedCornerShape(28.dp),
             singleLine = true,
-            enabled = ui.modelReady,
+            enabled = setup.modelReady,
         )
 
         when {
@@ -171,20 +182,19 @@ private fun SearchHome(vm: SearchViewModel = viewModel()) {
                 },
             )
 
-            !ui.modelReady -> StatusCard(
-                title = "索引引擎待就绪",
-                body = "EG2 740M 模型未就位（首次使用时从镜像自动下载；开发阶段可 adb push 到 app files/models/）。",
-                action = "重试检测",
-                onClick = { vm.refreshModelStatus() },
-            )
+            !setup.modelReady -> DownloadCard(setupVm = setupVm)
 
-            else -> if (ui.results.isEmpty() && ui.query.isNotBlank() && !ui.loading) {
-                Text(
-                    if (ui.error != null) "出错：${ui.error}" else "没有命中——索引可能还在建立，或换个说法试试",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            else -> IndexProgressRow(setup.index)
+        }
+
+        if (hasPermission && setup.modelReady &&
+            ui.results.isEmpty() && ui.query.isNotBlank() && !ui.loading
+        ) {
+            Text(
+                if (ui.error != null) "出错：${ui.error}" else "没有命中——索引可能还在建立，或换个说法试试",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         LazyVerticalGrid(
@@ -235,6 +245,91 @@ private fun ResultCard(uriString: String, score: Double) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun DownloadCard(setupVm: SetupViewModel) {
+    val setup by setupVm.state.collectAsStateWithLifecycle()
+    val d = setup.download
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("第二步：准备索引引擎", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "EG2 740M · 约 485MB · 一次性下载，之后全部离线。源：国内镜像优先，自动回退。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                setup.modelFile,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            when {
+                d.running -> {
+                    LinearProgressIndicator(
+                        progress = {
+                            if (d.totalBytes > 0) d.bytes.toFloat() / d.totalBytes else 0f
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        "${d.bytes / 1e6} / ${if (d.totalBytes > 0) "${d.totalBytes / 1e6} MB" else "?"} · ${d.host}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                d.failed != null -> {
+                    Text(
+                        "下载失败：${d.failed}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    FilledTonalButton(onClick = setupVm::startDownload) { Text("重试下载") }
+                }
+
+                else -> FilledTonalButton(onClick = setupVm::startDownload) { Text("下载模型") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IndexProgressRow(index: com.xueweijian.eg2media.ui.setup.IndexUi) {
+    when {
+        index.running -> {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LinearProgressIndicator(
+                    progress = {
+                        if (index.total > 0) index.done.toFloat() / index.total else 0f
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    if (index.total > 0) "建立索引 ${index.done}/${index.total}"
+                    else "建立索引中…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        index.enqueued -> Text(
+            "索引排队中（接通电源后自动开始）",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        index.finished -> Text(
+            "索引已就绪 ✓ 可以开始搜索",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
