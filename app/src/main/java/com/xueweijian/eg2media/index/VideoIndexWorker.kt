@@ -54,19 +54,18 @@ class VideoIndexWorker(
                         )
                     )
                 }
-            }
-            return Result.success(workDataOf(KEY_VDONE to pending.size, KEY_VTOTAL to pending.size))
+            }            return Result.success(workDataOf(KEY_VDONE to pending.size, KEY_VTOTAL to pending.size))
         } finally {
             store.close()
             EmbedderManager.release()
         }
     }
 
-    private fun indexVideo(
+    private suspend fun indexVideo(
         context: Context,
         store: RetrievalStore,
         video: com.xueweijian.eg2media.media.MediaVideo,
-        onFrame: (Int, Int) -> Unit,
+        onFrame: suspend (Int, Int) -> Unit,
     ) {
         val mmr = MediaMetadataRetriever()
         try {
