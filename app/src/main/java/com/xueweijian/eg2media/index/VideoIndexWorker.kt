@@ -54,7 +54,8 @@ class VideoIndexWorker(
                         )
                     )
                 }
-            }            return Result.success(workDataOf(KEY_VDONE to pending.size, KEY_VTOTAL to pending.size))
+            }
+            return Result.success(workDataOf(KEY_VDONE to pending.size, KEY_VTOTAL to pending.size))
         } finally {
             store.close()
             EmbedderManager.release()
