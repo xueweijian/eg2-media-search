@@ -21,8 +21,8 @@ jobs:
       - name: Setup Gradle (cache)
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+      - name: Unit tests + Build debug APK
+        run: ./gradlew test assembleDebug --stacktrace --no-daemon
 
       - name: Upload APK artifact
         if: always()
