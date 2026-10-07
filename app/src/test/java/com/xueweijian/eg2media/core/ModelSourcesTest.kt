@@ -29,9 +29,10 @@ class ModelSourcesTest {
 
     @Test
     fun `repo 名由文件名前缀推断`() {
-        assertEquals("embeddinggemma-2-740m-litert-lm", ModelSources.repoFor("embeddinggemma-2-740m.litertlm"))
-        assertEquals("gemma-4-E2B-it-litert-lm", ModelSources.repoFor("gemma-4-E2B-it.litertlm"))
-        assertEquals("gemma-4-E2B-it-litert-lm", ModelSources.repoFor("gemma-4-E2B-it_qualcomm_sm8750.litertlm"))
+        // 返回完整 org/name 形式（URL 拼接用）
+        assertEquals("litert-community/embeddinggemma-2-740m-litert-lm", ModelSources.repoFor("embeddinggemma-2-740m.litertlm"))
+        assertEquals("litert-community/gemma-4-E2B-it-litert-lm", ModelSources.repoFor("gemma-4-E2B-it.litertlm"))
+        assertEquals("litert-community/gemma-4-E2B-it-litert-lm", ModelSources.repoFor("gemma-4-E2B-it_qualcomm_sm8750.litertlm"))
     }
 
     @Test
