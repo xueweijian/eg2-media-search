@@ -34,6 +34,8 @@ data class SearchResult(
     val uri: String,
     val score: Double,
     val modality: String,
+    /** 全库唯一（src|mod|t0-t1），LazyGrid key 用——同视频多段同 uri，key=uri 会撞崩 */
+    val recordId: String,
 )
 
 /**
@@ -131,7 +133,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
         return e.query(vec768, topK = 24, excludeUri = excludeUri).mapNotNull { mh ->
             val uri = mh.meta["uri"]
             if (uri.isNullOrBlank()) null
-            else SearchResult(uri, mh.hit.score, mh.hit.modality.code)
+            else SearchResult(uri, mh.hit.score, mh.hit.modality.code, mh.hit.recordId)
         }
     }
 

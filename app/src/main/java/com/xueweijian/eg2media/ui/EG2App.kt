@@ -252,12 +252,12 @@ private fun SearchHome(
                 )
             }
 
-            var previewUri by remember { mutableStateOf<String?>(null) }
-            previewUri?.let { u ->
+            var previewItem by remember { mutableStateOf<com.xueweijian.eg2media.ui.search.SearchResult?>(null) }
+            previewItem?.let { p ->
                 MediaPreviewDialog(
-                    uriString = u,
-                    isVideo = false,
-                    onDismiss = { previewUri = null },
+                    uriString = p.uri,
+                    isVideo = p.modality == "vf" || p.modality == "va",
+                    onDismiss = { previewItem = null },
                 )
             }
 
@@ -267,8 +267,8 @@ private fun SearchHome(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
-                items(ui.results, key = { it.uri }) { r ->
-                    ResultCard(r.uri, r.score) { previewUri = r.uri }
+                items(ui.results, key = { it.recordId }) { r ->
+                    ResultCard(r.uri, r.score, r.modality) { previewItem = r }
                 }
             }
         }
@@ -277,7 +277,7 @@ private fun SearchHome(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun ResultCard(uriString: String, score: Double, onOpen: () -> Unit) {
+private fun ResultCard(uriString: String, score: Double, modality: String, onOpen: () -> Unit) {
     Card(
         onClick = onOpen,
         colors = CardDefaults.cardColors(
@@ -285,7 +285,19 @@ private fun ResultCard(uriString: String, score: Double, onOpen: () -> Unit) {
         ),
     ) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            MediaThumb(uriString, Modifier.size(96.dp))
+            Box {
+                MediaThumb(uriString, Modifier.size(96.dp))
+                if (modality == "vf" || modality == "va") {
+                    Icon(
+                        Icons.Filled.PlayCircle,
+                        contentDescription = "视频",
+                        tint = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(28.dp),
+                    )
+                }
+            }
             Text(
                 "%.2f".format(score),
                 style = MaterialTheme.typography.labelSmall,
