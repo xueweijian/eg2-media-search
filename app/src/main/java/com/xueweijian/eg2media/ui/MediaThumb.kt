@@ -150,42 +150,39 @@ private fun ImagePreview(uriString: String) {
         val b = withContext(Dispatchers.IO) { ThumbLoader.load(context, uriString, edge = 2048) }
         if (b != null) bmp = b else failed = true
     }
-    val b = bmp
-    when {
-        b != null -> Image(
-            bitmap = b.asImageBitmap(),
-            contentDescription = "全屏预览",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize(),
-        )
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val b = bmp
+        when {
+            b != null -> Image(
+                bitmap = b.asImageBitmap(),
+                contentDescription = "全屏预览",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
 
-        failed -> Column(
-            Modifier
-                .align(Alignment.Center)
-                .clickable {
-                    openPreview(context, uriString, "image/*", "图片")
-                }
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                Icons.Filled.Image,
-                contentDescription = null,
-                tint = androidx.compose.ui.graphics.Color.White,
-                modifier = Modifier.size(40.dp),
-            )
-            Text(
-                "无法加载 · 点此用系统相册打开",
-                color = androidx.compose.ui.graphics.Color.White,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            failed -> Column(
+                Modifier
+                    .clickable {
+                        openPreview(context, uriString, "image/*", "图片")
+                    }
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    Icons.Filled.Image,
+                    contentDescription = null,
+                    tint = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.size(40.dp),
+                )
+                Text(
+                    "无法加载 · 点此用系统相册打开",
+                    color = androidx.compose.ui.graphics.Color.White,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            else -> LinearProgressIndicator(Modifier.size(36.dp))
         }
-
-        else -> LinearProgressIndicator(
-            Modifier
-                .align(Alignment.Center)
-                .size(36.dp),
-        )
     }
 }
 
