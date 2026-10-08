@@ -49,6 +49,7 @@ class DiagnosticsRunner(private val context: Context) {
         val goldenBaseline: Boolean,
         val overallPass: Boolean,
         val failures: List<String>,
+        val recentCrash: String? = null,
     ) {
         fun toJson(): String = buildString {
             append("{\n")
@@ -81,7 +82,19 @@ class DiagnosticsRunner(private val context: Context) {
                 append(if (i == 0) "" else ", ")
                 append("\"${f.replace("\"", "'")}\"")
             }
-            append("]\n}\n")
+            append("]")
+            if (recentCrash != null) {
+                append(",\n  \"recent_crash\": \"")
+                append(
+                    recentCrash
+                        .replace("\\", "\\\\")
+                        .replace("\"", "'")
+                        .replace("\n", "\\n")
+                        .replace("\t", " "),
+                )
+                append("\"")
+            }
+            append("\n}\n")
         }
     }
 
@@ -168,6 +181,7 @@ class DiagnosticsRunner(private val context: Context) {
         if (isBaseline) onStep("golden 基线已采集")
 
         val model = EmbedderManager.modelFile(context)
+        val crash = recentCrash(context)
         return Report(
             deviceModel = Build.MODEL ?: "?",
             socModel = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else Build.HARDWARE,
@@ -188,7 +202,17 @@ class DiagnosticsRunner(private val context: Context) {
             goldenBaseline = isBaseline,
             overallPass = failures.isEmpty(),
             failures = failures,
+            recentCrash = crash,
         )
+    }
+
+    /** 闪退日志尾部（无则 null）——随诊断 JSON 导出，远程定位闪退 */
+    private fun recentCrash(context: Context, maxChars: Int = 900): String? {
+        val f = File(context.filesDir, "crash-log.txt")
+        if (!f.exists()) return null
+        val text = runCatching { f.readText() }.getOrNull() ?: return null
+        if (text.isBlank()) return null
+        return text.takeLast(maxChars)
     }
 
     private fun sha256Prefix(f: File, len: Int = 16): String? = runCatching {

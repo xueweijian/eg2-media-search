@@ -72,7 +72,7 @@ import androidx.compose.material.icons.filled.Bolt
 private data class TabSpec(val label: String)
 
 private val tabs = listOf(
-    TabSpec("图片"), TabSpec("视频"), TabSpec("音频"), TabSpec("文档"),
+    TabSpec("图库"), TabSpec("图片"), TabSpec("视频"), TabSpec("音频"), TabSpec("文档"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,8 +113,9 @@ fun EG2App() {
                                 Icon(
                                     when (i) {
                                         0 -> Icons.Filled.Image
-                                        1 -> Icons.Filled.PlayCircle
-                                        2 -> Icons.Filled.PlayArrow
+                                        1 -> Icons.Filled.Search
+                                        2 -> Icons.Filled.PlayCircle
+                                        3 -> Icons.Filled.PlayArrow
                                         else -> Icons.Filled.Description
                                     },
                                     contentDescription = spec.label,
@@ -132,9 +133,10 @@ fun EG2App() {
                     .padding(padding)
             ) {
             when (tab) {
-                0 -> SearchHome()
-                1 -> VideosScreen()
-                3 -> DocsScreen()
+                0 -> GalleryScreen()
+                1 -> SearchHome()
+                2 -> VideosScreen()
+                4 -> DocsScreen()
                 else -> ComingSoon(tabs[tab].label)
             }
             }
@@ -252,35 +254,17 @@ private fun SearchHome(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun ResultCard(uriString: String, score: Double) {
     val context = LocalContext.current
-    val bmp = remember(uriString) {
-        runCatching {
-            ImageLoader.decode(context, android.net.Uri.parse(uriString), targetEdge = 256)
-        }.getOrNull()
-    }
     Card(
+        onClick = { openPreview(context, uriString, "image/*", "图片") },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
     ) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(
-                Modifier
-                    .size(96.dp)
-                    .clip(RoundedCornerShape(12.dp))
-            ) {
-                if (bmp != null) {
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Box(Modifier.fillMaxSize()) // 解码失败占位
-                }
-            }
+            MediaThumb(uriString, Modifier.size(96.dp))
             Text(
                 "%.2f".format(score),
                 style = MaterialTheme.typography.labelSmall,

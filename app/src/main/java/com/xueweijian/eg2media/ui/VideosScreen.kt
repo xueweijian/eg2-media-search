@@ -83,11 +83,10 @@ fun VideosScreen(vm: VideoViewModel = viewModel()) {
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     ),
                     onClick = {
-                        runCatching {
-                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(r.uri))
-                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            context.startActivity(intent)
-                        }
+                        // t= 片段起点：多数系统播放器（含 miui 图库）支持，忽略则整段播放
+                        val u = android.net.Uri.parse(r.uri).buildUpon()
+                            .fragment("t=${r.startMs / 1000}").build()
+                        openPreview(context, u.toString(), "video/*", "视频")
                     },
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

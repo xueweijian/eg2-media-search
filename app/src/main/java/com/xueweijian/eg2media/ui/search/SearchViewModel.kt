@@ -104,8 +104,8 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
                     return@withContext emptyList()
                 }
                 runCatching {
-                    val bmp = ImageLoader.decode(ctx, uri, targetEdge = 768)
-                        ?: error("无法读取所选图片")
+                    val (bmp, reason) = ImageLoader.decodeDetailed(ctx, uri, targetEdge = 768)
+                    if (bmp == null) error(reason ?: "无法读取所选图片")
                     val vec = try {
                         EmbedderManager.embedImage(ctx, bmp)
                     } finally {
