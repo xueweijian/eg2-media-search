@@ -28,6 +28,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -79,9 +80,28 @@ private val tabs = listOf(
 fun EG2App() {
     EG2MediaTheme {
         var tab by rememberSaveable { mutableIntStateOf(0) }
+        var showDiag by rememberSaveable { mutableStateOf(false) }
+        // debug 构建（FLAG_DEBUGGABLE）才显示自检入口（方案 ①）
+        val ctx = LocalContext.current
+        val isDebug = remember {
+            (ctx.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        }
+        if (showDiag) DiagScreen(onDismiss = { showDiag = false })
         Scaffold(
             topBar = {
-                TopAppBar(title = { Text("EG2 Media Search", style = MaterialTheme.typography.titleLarge) })
+                TopAppBar(
+                    title = { Text("EG2 Media Search", style = MaterialTheme.typography.titleLarge) },
+                    actions = {
+                        if (isDebug) {
+                            IconButton(onClick = { showDiag = true }) {
+                                Icon(
+                                    Icons.Filled.Bolt,
+                                    contentDescription = "自检诊断",
+                                )
+                            }
+                        }
+                    },
+                )
             },
             bottomBar = {
                 NavigationBar {
