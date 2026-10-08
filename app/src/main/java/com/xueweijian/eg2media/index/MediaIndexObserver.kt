@@ -67,7 +67,8 @@ class MediaIndexObserver(private val context: Context) : ContentObserver(null) {
                     store.upsert(
                         RecordRef(id.toString(), Modality.IMAGE, 0L, 0L),
                         Mrl.truncateAndRenormalize(vec, RetrievalStore.DEFAULT_DIMS),
-                        mapOf("uri" to img.uri.toString()),
+                        content = img.uri.toString(),
+                        extraMeta = mapOf("uri" to img.uri.toString()),
                     )
                 } finally {
                     bmp.recycle()
