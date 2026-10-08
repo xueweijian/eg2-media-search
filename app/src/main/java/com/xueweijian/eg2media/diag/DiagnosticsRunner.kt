@@ -50,7 +50,14 @@ class DiagnosticsRunner(private val context: Context) {
         val overallPass: Boolean,
         val failures: List<String>,
         val recentCrash: String? = null,
+        val storeStats: StoreStatsJson? = null,
     ) {
+        data class StoreStatsJson(
+            val total: Int,
+            val byModality: Map<String, Int>,
+            val samples: Map<String, List<String>>,
+        )
+
         fun toJson(): String = buildString {
             append("{\n")
             append("  \"device\": \"$deviceModel\",\n")
@@ -93,6 +100,24 @@ class DiagnosticsRunner(private val context: Context) {
                         .replace("\t", " "),
                 )
                 append("\"")
+            }
+            storeStats?.let { s ->
+                append(",\n  \"store\": {\"total\": ${s.total}, \"by_modality\": {")
+                s.byModality.entries.forEachIndexed { i, (k, v) ->
+                    append(if (i == 0) "" else ", ")
+                    append("\"$k\": $v")
+                }
+                append("}, \"samples\": {")
+                s.samples.entries.forEachIndexed { i, (k, list) ->
+                    append(if (i == 0) "" else ", ")
+                    append("\"$k\": [")
+                    list.forEachIndexed { j, id ->
+                        append(if (j == 0) "" else ", ")
+                        append("\"${id.replace("\"", "'")}\"")
+                    }
+                    append("]")
+                }
+                append("}}")
             }
             append("\n}\n")
         }
@@ -182,6 +207,11 @@ class DiagnosticsRunner(private val context: Context) {
 
         val model = EmbedderManager.modelFile(context)
         val crash = recentCrash(context)
+        // 库统计（诊断增强 v0.21）：总数/模态分布/样本——远程可判库污染
+        val storeJson = runCatching {
+            val s = com.xueweijian.eg2media.store.RetrievalStore.get(context).stats()
+            Report.StoreStatsJson(s.total, s.byModality, s.samples)
+        }.getOrNull()
         return Report(
             deviceModel = Build.MODEL ?: "?",
             socModel = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else Build.HARDWARE,
@@ -203,6 +233,7 @@ class DiagnosticsRunner(private val context: Context) {
             overallPass = failures.isEmpty(),
             failures = failures,
             recentCrash = crash,
+            storeStats = storeJson,
         )
     }
 

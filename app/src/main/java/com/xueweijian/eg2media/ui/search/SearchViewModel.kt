@@ -131,9 +131,10 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
         val ctx = getApplication<Application>()
         val e = engine ?: SearchEngine(ctx).also { engine = it }
         return e.query(vec768, topK = 24, excludeUri = excludeUri).mapNotNull { mh ->
-            val uri = mh.meta["uri"]
-            if (uri.isNullOrBlank()) null
-            else SearchResult(uri, mh.hit.score, mh.hit.modality.code, mh.hit.recordId)
+            // v0.21：uri 优先由 recordId 确定性构造（MediaStore），meta 仅兜底
+            val uri = SearchEngine.resolveDisplayUri(mh.hit, mh.meta)
+            if (uri != null) SearchResult(uri, mh.hit.score, mh.hit.modality.code, mh.hit.recordId)
+            else null
         }
     }
 

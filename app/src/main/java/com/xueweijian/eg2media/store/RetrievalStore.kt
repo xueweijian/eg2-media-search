@@ -109,9 +109,39 @@ class RetrievalStore(
 
     fun indexedIds(): Set<String> = store.allRecordIds.toSet()
 
+    data class StoreStats(
+        val total: Int,
+        val byModality: Map<String, Int>,
+        val samples: Map<String, List<String>>,
+    )
+
+    /** 库统计（诊断用）：总数 + 按模态计数 + 每模态样本 recordId——远程判库 pollution */
+    fun stats(): StoreStats {
+        val ids = store.allRecordIds
+        val by = mutableMapOf<String, Int>()
+        val samples = mutableMapOf<String, MutableList<String>>()
+        for (id in ids) {
+            // recordId 形如 "src|mod|t0-t1"，第二段即模态 code
+            val mod = id.split('|').getOrNull(1) ?: "?"
+            by.merge(mod, 1, Int::plus)
+            samples.getOrPut(mod) { mutableListOf() }.also { if (it.size < 3) it.add(id) }
+        }
+        return StoreStats(ids.size, by, samples)
+    }
+
+    /** 清空全部记录（官方 deleteAllRecords 模式：按 id 全删）——重建索引入口用 */
+    fun deleteAll() {
+        val ids = store.allRecordIds
+        if (ids.isNotEmpty()) store.delete(ids)
+    }
+
     /** 按 ID 批量取 metadata（UI 取 uri 用） */
     fun getMeta(ids: List<String>): List<Map<String, String>> =
         store.get(ids).map { it.metadata }
+
+    /** v0.21：按 recordId 关联的 metadata（native get 返回顺序不可信，见 SearchEngine.query 注释） */
+    fun getMetaMap(ids: List<String>): Map<String, Map<String, String>> =
+        store.get(ids).mapNotNull { r -> r.metadata?.let { r.id to it } }.toMap()
 
     fun delete(ids: List<String>) = store.delete(ids)
 

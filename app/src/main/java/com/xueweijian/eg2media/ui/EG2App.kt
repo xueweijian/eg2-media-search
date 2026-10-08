@@ -452,7 +452,7 @@ private fun hasMediaPermission(context: android.content.Context): Boolean {
     return ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED
 }
 
-private suspend fun scheduleIndexing(context: android.content.Context) {
+internal suspend fun scheduleIndexing(context: android.content.Context) {
     val wm = WorkManager.getInstance(context)
     // 开箱即索：仅要求非低电（充电约束导致首装用户"排队中"永远不跑——真机实测教训）
     val constraints = Constraints.Builder()

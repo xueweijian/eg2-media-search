@@ -120,7 +120,8 @@ class VideoViewModel(app: Application) : AndroidViewModel(app) {
                 val e = engine ?: SearchEngine(ctx).also { engine = it }
                 e.query(vec, topK = 24, modality = Modality.VIDEO_FRAME).map { mh ->
                     VideoResult(
-                        uri = mh.meta["uri"] ?: "",
+                        // v0.21：uri 由 recordId 确定性构造（MediaStore），meta 仅兜底
+                        uri = SearchEngine.resolveDisplayUri(mh.hit, mh.meta) ?: "",
                         fileName = mh.meta["fn"] ?: "(视频)",
                         startMs = mh.hit.startMs,
                         endMs = mh.hit.endMs,
