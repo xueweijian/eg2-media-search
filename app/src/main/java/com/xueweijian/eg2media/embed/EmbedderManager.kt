@@ -109,8 +109,6 @@ object EmbedderManager {
         embedder = null
     }
 
-    companion object {
-        /** 740M 视觉塔合法值 70/140（模型卡）；70 = 低延迟签名 */
-        const val VISION_TOKENS_PER_IMAGE = 70
-    }
+    /** 740M 视觉塔合法值 70/140（模型卡）；70 = 低延迟签名 */
+    const val VISION_TOKENS_PER_IMAGE = 70
 }
