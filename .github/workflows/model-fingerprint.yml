@@ -1,0 +1,23 @@
+name: model-fingerprint
+on:
+  workflow_dispatch:
+
+jobs:
+  sha:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache model
+        uses: actions/cache@v4
+        with:
+          path: ~/model
+          key: eg2-740m-generic-v1
+      - name: Fingerprint
+        run: |
+          F=~/model/embeddinggemma-2-740m.litertlm
+          if [ ! -f "$F" ]; then
+            mkdir -p ~/model
+            curl -sL --retry 3 -o "$F" \
+              "https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/resolve/main/embeddinggemma-2-740m.litertlm"
+          fi
+          ls -lh "$F"
+          echo "sha256 prefix: $(sha256sum "$F" | cut -c1-16)"
