@@ -18,7 +18,7 @@ class SearchEngine(context: Context) : AutoCloseable {
         val meta: Map<String, String>,
     )
 
-    private val store = RetrievalStore(context)
+    private val store = RetrievalStore.get(context)
 
     fun query(
         vec768: FloatArray,
@@ -39,5 +39,6 @@ class SearchEngine(context: Context) : AutoCloseable {
 
     fun indexedIds(): Set<String> = store.indexedIds()
 
-    override fun close() = store.close()
+    /** store 为进程级单例（v0.19 并发修复），engine 关闭不再关 store——空实现保接口 */
+    override fun close() {}
 }

@@ -32,13 +32,7 @@ class VideoIndexWorker(
     override suspend fun doWork(): Result {
         val context = applicationContext
         if (!EmbedderManager.isModelReady(context)) return Result.retry()
-        // 前台化：与图片 worker 同策略（LMK 防杀 + 进度常驻）
-        runCatching {
-            setForeground(
-                IndexForeground.info(context, IndexForeground.NOTIF_ID_VIDEO, "正在索引视频", "抽帧中…"),
-            )
-        }
-        val store = RetrievalStore(context)
+        val store = RetrievalStore.get(context)
         try {
             val videos = MediaStoreRepo.queryVideos(context)
             val indexedVideoIds = store.indexedIds()
@@ -47,6 +41,13 @@ class VideoIndexWorker(
                 .toSet()
             val pending = videos.filter { it.id.toString() !in indexedVideoIds }
             if (pending.isEmpty()) return Result.success(workDataOf(KEY_VDONE to 0, KEY_VTOTAL to 0))
+
+            // 前台化挪到差集确认之后（与图片 worker 一致：追加语义，空跑不弹通知）
+            runCatching {
+                setForeground(
+                    IndexForeground.info(context, IndexForeground.NOTIF_ID_VIDEO, "正在索引视频", "抽帧中…"),
+                )
+            }
 
             var vfailed = 0
             pending.forEachIndexed { vi, video ->
@@ -68,7 +69,7 @@ class VideoIndexWorker(
                 workDataOf(KEY_VDONE to pending.size, KEY_VTOTAL to pending.size, KEY_VFAILED to vfailed)
             )
         } finally {
-            store.close()
+            // store 是进程级单例不关闭（v0.19 并发修复）；只释放推理引擎
             EmbedderManager.release()
         }
     }

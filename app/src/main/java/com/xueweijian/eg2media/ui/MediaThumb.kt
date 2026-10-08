@@ -205,6 +205,8 @@ private fun VideoPreview(uriString: String, startMs: Long) {
             }
         },
         update = { it.requestFocus() },
+        // Dialog 关闭即停播（官方 GalleryLifecycleProvider 思路：泄漏的音频比崩溃更烦人）
+        onRelease = { it.stopPlayback() },
         modifier = Modifier.fillMaxSize(),
     )
 }

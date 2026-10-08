@@ -25,13 +25,7 @@ class ImageIndexWorker(
     override suspend fun doWork(): Result {
         val context = applicationContext
         if (!EmbedderManager.isModelReady(context)) return Result.retry()
-        // 前台化：LMK 不杀 + 通知栏常驻进度（失败不致命，照常索引）
-        runCatching {
-            setForeground(
-                IndexForeground.info(context, IndexForeground.NOTIF_ID_IMAGE, "正在索引图片", "准备中…"),
-            )
-        }
-        val store = RetrievalStore(context)
+        val store = RetrievalStore.get(context)
         try {
             val all = MediaStoreRepo.queryImages(context)
             val indexed = store.indexedIds()
@@ -39,6 +33,14 @@ class ImageIndexWorker(
                 RecordIdsKey(it.id.toString()) !in indexed
             }
             if (pending.isEmpty()) return Result.success(workDataOf(KEY_DONE to 0, KEY_TOTAL to 0))
+
+            // 前台化：LMK 不杀 + 通知栏常驻进度。挪到差集确认之后——
+            // 追加语义下秒退的空跑不再弹前台通知（v0.19 反复索引观感修复）
+            runCatching {
+                setForeground(
+                    IndexForeground.info(context, IndexForeground.NOTIF_ID_IMAGE, "正在索引图片", "准备中…"),
+                )
+            }
 
             var done = 0
             var failed = 0
@@ -76,7 +78,7 @@ class ImageIndexWorker(
                 workDataOf(KEY_DONE to done, KEY_TOTAL to pending.size, KEY_FAILED to failed)
             )
         } finally {
-            store.close()
+            // store 是进程级单例不关闭（v0.19 并发修复）；只释放推理引擎
             EmbedderManager.release()
         }
     }

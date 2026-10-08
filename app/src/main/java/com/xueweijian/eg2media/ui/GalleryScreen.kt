@@ -42,12 +42,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 /**
  * 图库网格（嵌入「图片」tab：搜索框下方、无查询时显示全部本地媒体）。
  * Google 相册形态：照片流常驻，点击 app 内全屏预览。
+ * v0.19：内部改 Column 包裹 + LazyVerticalGrid(weight(1f))——对齐 Edge Gallery
+ * SmartAlbumSearchScreen 的骨架。此前网格无界高度塞在外层 Column 里，
+ * LazyGrid 越界测量 = 真机闪退根因（outBeyondBoundsModifierLocal 栈）。
  */
 @Composable
-fun GalleryGridInline(vm: GalleryViewModel = viewModel()) {
+fun GalleryGridInline(modifier: Modifier = Modifier, vm: GalleryViewModel = viewModel()) {
     val items by vm.items.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     var preview by remember { mutableStateOf<GalleryItem?>(null) }
 
     LaunchedEffect(Unit) { vm.refresh() }
@@ -60,40 +62,42 @@ fun GalleryGridInline(vm: GalleryViewModel = viewModel()) {
         )
     }
 
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            "全部媒体",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            "${items.size} 项",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        IconButton(onClick = { vm.refresh(force = true) }) {
-            Icon(Icons.Filled.Refresh, contentDescription = "刷新", modifier = Modifier.size(20.dp))
+    Column(modifier) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "全部媒体",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "${items.size} 项",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            IconButton(onClick = { vm.refresh(force = true) }) {
+                Icon(Icons.Filled.Refresh, contentDescription = "刷新", modifier = Modifier.size(20.dp))
+            }
         }
-    }
 
-    if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
 
-    if (!loading && items.isEmpty()) {
-        Text(
-            "相册为空（或授权的是部分照片）——去系统设置把本应用的照片权限改为「全部」可扩大范围",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+        if (!loading && items.isEmpty()) {
+            Text(
+                "相册为空（或授权的是部分照片）——去系统设置把本应用的照片权限改为「全部」可扩大范围",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(96.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(96.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) {
         items(items, key = { it.uri }) { g ->
             Box(
                 Modifier
@@ -127,6 +131,7 @@ fun GalleryGridInline(vm: GalleryViewModel = viewModel()) {
                     }
                 }
             }
-        }
-    }
+        } // items lambda
+        } // LazyVerticalGrid
+        } // Column(weight 区域)
 }

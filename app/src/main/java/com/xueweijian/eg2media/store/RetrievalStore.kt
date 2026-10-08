@@ -22,6 +22,28 @@ class RetrievalStore(
 
     private val store = SqliteVectorStore(context, DB_NAME, dims)
 
+    companion object {
+        const val DB_NAME = "eg2_index"
+        const val DEFAULT_DIMS = 512
+
+        /** 全量余弦搜索时单批 get 的记录数（控制 JNI 往返与内存峰值） */
+        private const val GET_BATCH = 500
+
+        /**
+         * 进程级单例（对齐 Edge Gallery SemanticRetrievalService：vectorStore by lazy，
+         * 全 app 共享一个实例）。此前 worker / observer / SearchEngine / DocIndexer 各自
+         * new SqliteVectorStore 打开同一 db 文件并发读写——索引中搜索的闪退候选根因。
+         * close() 置空单例，下次 get() 重建（e2e 测试依赖此语义）。
+         */
+        @Volatile
+        private var instance: RetrievalStore? = null
+
+        fun get(context: Context): RetrievalStore =
+            instance ?: synchronized(this) {
+                instance ?: RetrievalStore(context.applicationContext).also { instance = it }
+            }
+    }
+
     fun upsert(
         ref: RecordRef,
         vector512: FloatArray,
@@ -98,7 +120,10 @@ class RetrievalStore(
         store.delete(mapOf("uri" to sourceId, "mod" to modality.code))
     }
 
-    override fun close() = store.close()
+    override fun close() {
+        store.close()
+        instance = null
+    }
 
     private fun cosine(a: FloatArray, b: FloatArray): Double {
         val n = minOf(a.size, b.size)
@@ -112,13 +137,5 @@ class RetrievalStore(
         }
         if (na <= 0.0 || nb <= 0.0) return 0.0
         return dot / (kotlin.math.sqrt(na) * kotlin.math.sqrt(nb))
-    }
-
-    companion object {
-        const val DB_NAME = "eg2_index"
-        const val DEFAULT_DIMS = 512
-
-        /** 全量余弦搜索时单批 get 的记录数（控制 JNI 往返与内存峰值） */
-        private const val GET_BATCH = 500
     }
 }

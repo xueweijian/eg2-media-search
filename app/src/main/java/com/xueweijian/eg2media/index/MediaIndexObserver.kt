@@ -57,7 +57,7 @@ class MediaIndexObserver(private val context: Context) : ContentObserver(null) {
             Log.d(TAG, "model not ready, skip ${ids.size} changes (full index will catch up)")
             return
         }
-        val store = RetrievalStore(context)
+        val store = RetrievalStore.get(context)
         try {
             for (id in ids) {
                 val img = MediaStoreRepo.queryImageById(context, id) ?: continue
@@ -77,8 +77,6 @@ class MediaIndexObserver(private val context: Context) : ContentObserver(null) {
             Log.d(TAG, "incremental indexed ${ids.size} images")
         } catch (e: Exception) {
             Log.w(TAG, "incremental index failed: ${e.message}")
-        } finally {
-            store.close()
         }
     }
 

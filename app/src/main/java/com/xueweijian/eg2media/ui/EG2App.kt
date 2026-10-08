@@ -59,7 +59,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.await
 import com.xueweijian.eg2media.index.ImageIndexWorker
 import com.xueweijian.eg2media.media.ImageLoader
 import com.xueweijian.eg2media.ui.search.SearchViewModel
@@ -234,9 +236,11 @@ private fun SearchHome(
         }
 
         // 无查询 = Google 相册形态（照片流常驻）；有查询 = 结果网格
+        // v0.19：两个网格都对齐官方骨架（LazyVerticalGrid 必须 weight(1f) 有界高度，
+        // 此前无界嵌套 = outBeyondBounds 测量崩溃闪退）
         if (ui.query.isBlank()) {
             if (hasPermission && setup.modelReady) {
-                GalleryGridInline()
+                GalleryGridInline(Modifier.weight(1f))
             }
         } else {
             if (hasPermission && setup.modelReady &&
@@ -262,6 +266,7 @@ private fun SearchHome(
                 columns = GridCells.Adaptive(108.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
                 items(ui.results, key = { it.uri }) { r ->
                     ResultCard(r.uri, r.score) { previewUri = r.uri }
@@ -435,22 +440,40 @@ private fun hasMediaPermission(context: android.content.Context): Boolean {
     return ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED
 }
 
-private fun scheduleIndexing(context: android.content.Context) {
+private suspend fun scheduleIndexing(context: android.content.Context) {
     val wm = WorkManager.getInstance(context)
     // 开箱即索：仅要求非低电（充电约束导致首装用户"排队中"永远不跑——真机实测教训）
     val constraints = Constraints.Builder()
         .setRequiresBatteryNotLow(true)
         .build()
-    wm.enqueueUniqueWork(
-        ImageIndexWorker.UNIQUE_NAME,
-        ExistingWorkPolicy.REPLACE,
-        OneTimeWorkRequestBuilder<ImageIndexWorker>().setConstraints(constraints).build(),
-    )
-    wm.enqueueUniqueWork(
-        com.xueweijian.eg2media.index.VideoIndexWorker.UNIQUE_NAME,
-        ExistingWorkPolicy.REPLACE,
-        OneTimeWorkRequestBuilder<com.xueweijian.eg2media.index.VideoIndexWorker>()
-            .setConstraints(constraints)
-            .build(),
-    )
+
+    // v0.19（对齐 Edge Gallery SmartAlbumIndexingWorker.enqueue）：
+    // - 默认 KEEP：正在跑/排队中绝不掀桌子（REPLACE 曾把每次进 tab 变成"从头索引"）
+    // - 已 SUCCEEDED 的 unique work 再次 enqueue 会被 WorkManager 当作新任务重新入队，
+    //   所以这里显式短路——无活跃任务才入队（空差集秒退无通知，差集由 observer 增量补）
+    suspend fun shouldEnqueue(uniqueName: String): Boolean {
+        val infos = runCatching {
+            wm.getWorkInfosForUniqueWork(uniqueName).await()
+        }.getOrNull() ?: return true
+        return infos.none {
+            it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING
+        }
+    }
+
+    if (shouldEnqueue(ImageIndexWorker.UNIQUE_NAME)) {
+        wm.enqueueUniqueWork(
+            ImageIndexWorker.UNIQUE_NAME,
+            ExistingWorkPolicy.KEEP,
+            OneTimeWorkRequestBuilder<ImageIndexWorker>().setConstraints(constraints).build(),
+        )
+    }
+    if (shouldEnqueue(com.xueweijian.eg2media.index.VideoIndexWorker.UNIQUE_NAME)) {
+        wm.enqueueUniqueWork(
+            com.xueweijian.eg2media.index.VideoIndexWorker.UNIQUE_NAME,
+            ExistingWorkPolicy.KEEP,
+            OneTimeWorkRequestBuilder<com.xueweijian.eg2media.index.VideoIndexWorker>()
+                .setConstraints(constraints)
+                .build(),
+        )
+    }
 }

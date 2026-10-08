@@ -35,7 +35,7 @@ class DocIndexer(private val context: Context) {
         if (chunks.isEmpty()) return Result(0, text.length)
 
         val sourceId = uri.toString()
-        val store = RetrievalStore(context)
+        val store = RetrievalStore.get(context)
         try {
             // 清旧块（重索引幂等）
             runCatching { store.deleteBySource(sourceId, Modality.DOC_CHUNK) }
@@ -63,7 +63,7 @@ class DocIndexer(private val context: Context) {
                 onChunk(i + 1, chunks.size)
             }
         } finally {
-            store.close()
+            // store 进程级单例不关闭（v0.19）
         }
         return Result(chunks.size, text.length)
     }
