@@ -7,15 +7,21 @@ import android.net.Uri
 import android.util.Size
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,7 +86,7 @@ fun MediaThumb(uriString: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** 系统预览（相册/播放器接管大图与播放），无 handler 时 Toast 提示而非静默吞掉 */
+/** 系统预览兜底（app 内预览失败时），无 handler 时 Toast 提示而非静默吞掉 */
 fun openPreview(context: Context, uriString: String, mime: String, label: String) {
     runCatching {
         val intent = Intent(Intent.ACTION_VIEW)
@@ -90,4 +96,118 @@ fun openPreview(context: Context, uriString: String, mime: String, label: String
     }.onFailure {
         Toast.makeText(context, "没有应用能打开这个$label", Toast.LENGTH_SHORT).show()
     }
+}
+
+/** App 内全屏预览（用户需求：预览在本 app 完成）。图片全屏 Fit 显示；视频内置 VideoView 自动播放。
+ *  解码失败给「用系统相册打开」出口。点击背景关闭。 */
+@Composable
+fun MediaPreviewDialog(
+    uriString: String,
+    isVideo: Boolean,
+    startMs: Long = 0L,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnClickOutside = false,
+        ),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color.Black)
+                .clickable(onClick = onDismiss),
+        ) {
+            if (isVideo) {
+                VideoPreview(uriString = uriString, startMs = startMs)
+            } else {
+                ImagePreview(uriString = uriString)
+            }
+            Text(
+                "✕",
+                color = androidx.compose.ui.graphics.Color.White,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(20.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onDismiss)
+                    .padding(6.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImagePreview(uriString: String) {
+    val context = LocalContext.current
+    var bmp by remember(uriString) { mutableStateOf<Bitmap?>(null) }
+    var failed by remember(uriString) { mutableStateOf(false) }
+    LaunchedEffect(uriString) {
+        val b = withContext(Dispatchers.IO) { ThumbLoader.load(context, uriString, edge = 2048) }
+        if (b != null) bmp = b else failed = true
+    }
+    val b = bmp
+    when {
+        b != null -> Image(
+            bitmap = b.asImageBitmap(),
+            contentDescription = "全屏预览",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        failed -> Column(
+            Modifier
+                .align(Alignment.Center)
+                .clickable {
+                    openPreview(context, uriString, "image/*", "图片")
+                }
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                Icons.Filled.Image,
+                contentDescription = null,
+                tint = androidx.compose.ui.graphics.Color.White,
+                modifier = Modifier.size(40.dp),
+            )
+            Text(
+                "无法加载 · 点此用系统相册打开",
+                color = androidx.compose.ui.graphics.Color.White,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        else -> LinearProgressIndicator(
+            Modifier
+                .align(Alignment.Center)
+                .size(36.dp),
+        )
+    }
+}
+
+@Composable
+private fun VideoPreview(uriString: String, startMs: Long) {
+    val context = LocalContext.current
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = {
+            android.widget.VideoView(it).apply {
+                setVideoURI(Uri.parse(uriString))
+                setOnPreparedListener { mp ->
+                    mp.isLooping = false
+                    if (startMs > 0) seekTo(startMs.toInt())
+                    start()
+                }
+                setOnErrorListener { _, _, _ ->
+                    openPreview(context, uriString, "video/*", "视频")
+                    true
+                }
+            }
+        },
+        update = { it.requestFocus() },
+        modifier = Modifier.fillMaxSize(),
+    )
 }

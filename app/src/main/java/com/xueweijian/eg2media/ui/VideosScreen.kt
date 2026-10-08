@@ -17,6 +17,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -31,6 +34,16 @@ import java.util.Locale
 fun VideosScreen(vm: VideoViewModel = viewModel()) {
     val ui by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var previewItem by remember { mutableStateOf<com.xueweijian.eg2media.ui.videos.VideoResult?>(null) }
+
+    previewItem?.let { p ->
+        MediaPreviewDialog(
+            uriString = p.uri,
+            isVideo = true,
+            startMs = p.startMs,
+            onDismiss = { previewItem = null },
+        )
+    }
 
     Column(
         Modifier
@@ -82,12 +95,7 @@ fun VideosScreen(vm: VideoViewModel = viewModel()) {
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     ),
-                    onClick = {
-                        // t= 片段起点：多数系统播放器（含 miui 图库）支持，忽略则整段播放
-                        val u = android.net.Uri.parse(r.uri).buildUpon()
-                            .fragment("t=${r.startMs / 1000}").build()
-                        openPreview(context, u.toString(), "video/*", "视频")
-                    },
+                    onClick = { previewItem = r },
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(r.fileName, style = MaterialTheme.typography.titleSmall)

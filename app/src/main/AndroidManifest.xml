@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- 文搜图/图搜图：相册读取（API 33+ 细粒度，33 以下自动映射 READ_EXTERNAL_STORAGE） -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
@@ -9,6 +10,10 @@
         android:maxSdkVersion="32" />
     <!-- 模型下载（hf-mirror 优先，HANDOFF §2.5） -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 索引 worker 前台服务化：LMK 防杀 + 进度常驻通知（真机索引中闪退取证 Round 18） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".EG2Application"
@@ -26,5 +31,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- WorkManager 前台服务标注 dataSync 类型（Android 14+ 必需） -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
     </application>
 </manifest>

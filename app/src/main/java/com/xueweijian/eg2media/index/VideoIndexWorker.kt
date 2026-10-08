@@ -32,6 +32,12 @@ class VideoIndexWorker(
     override suspend fun doWork(): Result {
         val context = applicationContext
         if (!EmbedderManager.isModelReady(context)) return Result.retry()
+        // 前台化：与图片 worker 同策略（LMK 防杀 + 进度常驻）
+        runCatching {
+            setForeground(
+                IndexForeground.info(context, IndexForeground.NOTIF_ID_VIDEO, "正在索引视频", "抽帧中…"),
+            )
+        }
         val store = RetrievalStore(context)
         try {
             val videos = MediaStoreRepo.queryVideos(context)

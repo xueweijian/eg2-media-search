@@ -25,6 +25,12 @@ class ImageIndexWorker(
     override suspend fun doWork(): Result {
         val context = applicationContext
         if (!EmbedderManager.isModelReady(context)) return Result.retry()
+        // 前台化：LMK 不杀 + 通知栏常驻进度（失败不致命，照常索引）
+        runCatching {
+            setForeground(
+                IndexForeground.info(context, IndexForeground.NOTIF_ID_IMAGE, "正在索引图片", "准备中…"),
+            )
+        }
         val store = RetrievalStore(context)
         try {
             val all = MediaStoreRepo.queryImages(context)

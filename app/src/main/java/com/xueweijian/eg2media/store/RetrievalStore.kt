@@ -55,17 +55,34 @@ class RetrievalStore(
         filter: Map<String, String> = emptyMap(),
     ): List<Hit> {
         require(queryVector512.size == dims)
-        return store.search(queryVector512, topK, filter).mapNotNull { rec ->
-            val ref = runCatching { RecordIds.decode(rec.id) }.getOrNull() ?: return@mapNotNull null
-            Hit(
-                recordId = rec.id,
-                sourceId = ref.sourceId,
-                modality = ref.modality,
-                startMs = ref.startMs,
-                endMs = ref.endMs,
-                score = cosine(queryVector512, rec.embeddings),
-            )
+        // 纯 Kotlin 全量余弦（对齐 google-ai-edge/gallery 的 SemanticRetrievalService）。
+        // 不再用 nativeGetNearestRecords：其 native 层行为黑盒，实测 21 条低分记录只返回
+        // 2 条且分数从不低于 ~0.62（内部相似度下限），而本 app 场景要求全量排序不丢结果。
+        // 规模预算：5 万条 × 512d ≈ 25ms 余弦；分批 get 控制 JNI/内存峰值。
+        val ids = store.allRecordIds
+        if (ids.isEmpty()) return emptyList()
+        val scored = ArrayList<Hit>(ids.size)
+        for (chunk in ids.chunked(GET_BATCH)) {
+            for (rec in store.get(chunk)) {
+                val ref = runCatching { RecordIds.decode(rec.id) }.getOrNull() ?: continue
+                if (filter.isNotEmpty()) {
+                    val meta = rec.metadata ?: continue
+                    val ok = filter.all { (k, v) -> meta[k] == v }
+                    if (!ok) continue
+                }
+                val emb = rec.embeddings
+                if (emb.isEmpty()) continue
+                scored += Hit(
+                    recordId = rec.id,
+                    sourceId = ref.sourceId,
+                    modality = ref.modality,
+                    startMs = ref.startMs,
+                    endMs = ref.endMs,
+                    score = cosine(queryVector512, emb),
+                )
+            }
         }
+        return scored.sortedByDescending { it.score }.take(topK)
     }
 
     fun indexedIds(): Set<String> = store.allRecordIds.toSet()
@@ -100,5 +117,8 @@ class RetrievalStore(
     companion object {
         const val DB_NAME = "eg2_index"
         const val DEFAULT_DIMS = 512
+
+        /** 全量余弦搜索时单批 get 的记录数（控制 JNI 往返与内存峰值） */
+        private const val GET_BATCH = 500
     }
 }

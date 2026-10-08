@@ -72,7 +72,7 @@ import androidx.compose.material.icons.filled.Bolt
 private data class TabSpec(val label: String)
 
 private val tabs = listOf(
-    TabSpec("图库"), TabSpec("图片"), TabSpec("视频"), TabSpec("音频"), TabSpec("文档"),
+    TabSpec("图片"), TabSpec("视频"), TabSpec("音频"), TabSpec("文档"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,9 +113,8 @@ fun EG2App() {
                                 Icon(
                                     when (i) {
                                         0 -> Icons.Filled.Image
-                                        1 -> Icons.Filled.Search
-                                        2 -> Icons.Filled.PlayCircle
-                                        3 -> Icons.Filled.PlayArrow
+                                        1 -> Icons.Filled.PlayCircle
+                                        2 -> Icons.Filled.PlayArrow
                                         else -> Icons.Filled.Description
                                     },
                                     contentDescription = spec.label,
@@ -133,10 +132,9 @@ fun EG2App() {
                     .padding(padding)
             ) {
             when (tab) {
-                0 -> GalleryScreen()
-                1 -> SearchHome()
-                2 -> VideosScreen()
-                4 -> DocsScreen()
+                0 -> SearchHome()
+                1 -> VideosScreen()
+                3 -> DocsScreen()
                 else -> ComingSoon(tabs[tab].label)
             }
             }
@@ -160,7 +158,10 @@ private fun SearchHome(
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
-        hasPermission = grants.values.all { it }
+        // 媒体权限才决定主流程；通知权限被拒只影响前台通知可见性，不阻塞索引
+        hasPermission = grants
+            .filterKeys { it != Manifest.permission.POST_NOTIFICATIONS }
+            .values.all { it }
     }
     val pickMedia = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
@@ -207,6 +208,7 @@ private fun SearchHome(
                         arrayOf(
                             Manifest.permission.READ_MEDIA_IMAGES,
                             Manifest.permission.READ_MEDIA_VIDEO,
+                            Manifest.permission.POST_NOTIFICATIONS,
                         )
                     } else {
                         arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -231,23 +233,39 @@ private fun SearchHome(
             }
         }
 
-        if (hasPermission && setup.modelReady &&
-            ui.results.isEmpty() && ui.query.isNotBlank() && !ui.loading
-        ) {
-            Text(
-                if (ui.error != null) "出错：${ui.error}" else "没有命中——索引可能还在建立，或换个说法试试",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        // 无查询 = Google 相册形态（照片流常驻）；有查询 = 结果网格
+        if (ui.query.isBlank()) {
+            if (hasPermission && setup.modelReady) {
+                GalleryGridInline()
+            }
+        } else {
+            if (hasPermission && setup.modelReady &&
+                ui.results.isEmpty() && !ui.loading
+            ) {
+                Text(
+                    if (ui.error != null) "出错：${ui.error}" else "没有命中——换个说法试试",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(108.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(ui.results, key = { it.uri }) { r ->
-                ResultCard(r.uri, r.score)
+            var previewUri by remember { mutableStateOf<String?>(null) }
+            previewUri?.let { u ->
+                MediaPreviewDialog(
+                    uriString = u,
+                    isVideo = false,
+                    onDismiss = { previewUri = null },
+                )
+            }
+
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(108.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(ui.results, key = { it.uri }) { r ->
+                    ResultCard(r.uri, r.score) { previewUri = r.uri }
+                }
             }
         }
     }
@@ -255,10 +273,9 @@ private fun SearchHome(
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun ResultCard(uriString: String, score: Double) {
-    val context = LocalContext.current
+private fun ResultCard(uriString: String, score: Double, onOpen: () -> Unit) {
     Card(
-        onClick = { openPreview(context, uriString, "image/*", "图片") },
+        onClick = onOpen,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
