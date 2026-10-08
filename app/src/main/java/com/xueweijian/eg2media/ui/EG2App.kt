@@ -198,7 +198,7 @@ private fun SearchHome(
         when {
             !hasPermission -> StatusCard(
                 title = "第一步：授权相册",
-                body = "完全本地运行，照片永不上传。授权后将在充电时自动建立语义索引。",
+                body = "完全本地运行，照片永不上传。授权后自动建立语义索引（无需充电）。",
                 action = "授予权限",
                 onClick = {
                     val perms = if (Build.VERSION.SDK_INT >= 33) {
@@ -434,12 +434,12 @@ private fun scheduleIndexing(context: android.content.Context) {
         .build()
     wm.enqueueUniqueWork(
         ImageIndexWorker.UNIQUE_NAME,
-        ExistingWorkPolicy.UPDATE,
+        ExistingWorkPolicy.REPLACE,
         OneTimeWorkRequestBuilder<ImageIndexWorker>().setConstraints(constraints).build(),
     )
     wm.enqueueUniqueWork(
         com.xueweijian.eg2media.index.VideoIndexWorker.UNIQUE_NAME,
-        ExistingWorkPolicy.UPDATE,
+        ExistingWorkPolicy.REPLACE,
         OneTimeWorkRequestBuilder<com.xueweijian.eg2media.index.VideoIndexWorker>()
             .setConstraints(constraints)
             .build(),
