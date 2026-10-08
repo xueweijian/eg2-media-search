@@ -75,6 +75,11 @@ object EmbedderManager {
             .setVisionDelegate(delegate)
             .setAudioDelegate(Delegate.CPU)
             .setL2Normalize(true)
+            // 740M 视觉塔只接受 70/140 个 image soft tokens（模型卡规格）；
+            // 不设则 patch 数随图片尺寸浮动，输出张量出现动态维度，
+            // litert 报 "TensorBuffer must have all static dimensions"。
+            // 70 = 低延迟签名（官方 benchmark 所用）；140 = 更细粒度可后续切换。
+            .setVisionTokensPerImage(VISION_TOKENS_PER_IMAGE)
             .build()
         return UniversalEmbedder.createFromOptions(context, options)
     }
@@ -102,5 +107,10 @@ object EmbedderManager {
     fun release() = lock.withLock {
         embedder?.close()
         embedder = null
+    }
+
+    companion object {
+        /** 740M 视觉塔合法值 70/140（模型卡）；70 = 低延迟签名 */
+        const val VISION_TOKENS_PER_IMAGE = 70
     }
 }

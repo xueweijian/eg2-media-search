@@ -35,6 +35,7 @@ class ImageIndexWorker(
             if (pending.isEmpty()) return Result.success(workDataOf(KEY_DONE to 0, KEY_TOTAL to 0))
 
             var done = 0
+            var failed = 0
             for (batch in pending.chunked(BATCH)) {
                 if (isStopped) return Result.retry()
                 for (img in batch) {
@@ -47,6 +48,10 @@ class ImageIndexWorker(
                             Mrl.truncateAndRenormalize(vec, RetrievalStore.DEFAULT_DIMS),
                             mapOf("uri" to img.uri.toString()),
                         )
+                    } catch (e: Exception) {
+                        // 单图失败不拖垮整批，但计数上报（损坏文件 / 编解码异常常见）
+                        android.util.Log.w("ImageIndexWorker", "skip ${img.id}: ${e.message}")
+                        failed++
                     } finally {
                         bmp.recycle()
                     }
@@ -56,10 +61,13 @@ class ImageIndexWorker(
                     workDataOf(
                         KEY_DONE to done,
                         KEY_TOTAL to pending.size,
+                        KEY_FAILED to failed,
                     )
                 )
             }
-            return Result.success(workDataOf(KEY_DONE to done, KEY_TOTAL to pending.size))
+            return Result.success(
+                workDataOf(KEY_DONE to done, KEY_TOTAL to pending.size, KEY_FAILED to failed)
+            )
         } finally {
             store.close()
             EmbedderManager.release()
@@ -74,6 +82,7 @@ class ImageIndexWorker(
     companion object {
         const val KEY_DONE = "done"
         const val KEY_TOTAL = "total"
+        const val KEY_FAILED = "failed"
         const val BATCH = 50
         const val UNIQUE_NAME = "image-index"
     }

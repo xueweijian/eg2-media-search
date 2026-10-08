@@ -27,8 +27,10 @@ data class IndexUi(
     val enqueued: Boolean = false,
     val running: Boolean = false,
     val finished: Boolean = false,
+    val failed: Boolean = false,
     val done: Int = 0,
     val total: Int = 0,
+    val failedCount: Int = 0,
 )
 
 data class SetupUiState(
@@ -74,17 +76,21 @@ class SetupViewModel(app: Application) : AndroidViewModel(app) {
             .getWorkInfosForUniqueWorkFlow(ImageIndexWorker.UNIQUE_NAME)
             .onEach { infos ->
                 val active = infos.firstOrNull { !it.state.isFinished }
-                val finished = infos.firstOrNull { it.state == WorkInfo.State.SUCCEEDED }
-                val prog = active?.progress ?: finished?.outputData
+                val succeeded = infos.firstOrNull { it.state == WorkInfo.State.SUCCEEDED }
+                val failedRun = infos.firstOrNull { it.state == WorkInfo.State.FAILED }
+                val prog = active?.progress ?: succeeded?.outputData
                 val done = prog?.getInt(ImageIndexWorker.KEY_DONE, 0) ?: 0
                 val total = prog?.getInt(ImageIndexWorker.KEY_TOTAL, 0) ?: 0
+                val failedCount = prog?.getInt(ImageIndexWorker.KEY_FAILED, 0) ?: 0
                 _state.value = _state.value.copy(
                     index = IndexUi(
                         enqueued = active?.state == WorkInfo.State.ENQUEUED,
                         running = active?.state == WorkInfo.State.RUNNING,
-                        finished = finished != null,
+                        finished = succeeded != null,
+                        failed = failedRun != null,
                         done = done,
                         total = total,
+                        failedCount = failedCount,
                     )
                 )
             }

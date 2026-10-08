@@ -14,8 +14,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
-            // 首发只发 arm64（HANDOFF §0 兼容性下限）
+            // 首发只发 arm64（HANDOFF §0 兼容性下限）；debug 追加 x86_64 供 CI 模拟器 e2e
             abiFilters += listOf("arm64-v8a")
         }
     }
@@ -28,6 +29,12 @@ android {
                 "proguard-rules.pro"
             )
         }
+        debug {
+            // 模拟器 e2e（CI x86_64）与真机 debug 并存：追加而非覆盖
+            ndk {
+                abiFilters += listOf("x86_64")
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -35,6 +42,10 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    testOptions {
+        // instrumented 测试在模拟器上验证真实 litert 栈（CPU delegate fallback）
+        unitTests.isReturnDefaultValues = true
     }
 }
 
@@ -74,4 +85,10 @@ dependencies {
 
     // 纯 JVM 单测（core 包第一性原子层，TDD）
     testImplementation("junit:junit:4.13.2")
+
+    // 模拟器 instrumented e2e（CI）：真实 litert 栈契约验证
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("junit:junit:4.13.2")
 }

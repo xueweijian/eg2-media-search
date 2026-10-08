@@ -63,6 +63,10 @@ fun DiagScreen(onDismiss: () -> Unit, vm: DiagViewModel = viewModel()) {
                 }
                 ui.error?.let {
                     Text("出错：$it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                    TextButton(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(ui.error ?: ""))
+                    }) { Text("复制错误信息") }
                 }
 
                 ui.report?.let { r ->

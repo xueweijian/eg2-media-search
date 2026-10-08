@@ -42,20 +42,25 @@ class VideoIndexWorker(
             val pending = videos.filter { it.id.toString() !in indexedVideoIds }
             if (pending.isEmpty()) return Result.success(workDataOf(KEY_VDONE to 0, KEY_VTOTAL to 0))
 
+            var vfailed = 0
             pending.forEachIndexed { vi, video ->
                 if (isStopped) return Result.retry()
-                indexVideo(context, store, video) { fdone, ftotal ->
+                val ok = indexVideo(context, store, video) { fdone, ftotal ->
                     setProgress(
                         workDataOf(
                             KEY_VDONE to vi + 1,
                             KEY_VTOTAL to pending.size,
                             KEY_FDONE to fdone,
                             KEY_FTOTAL to ftotal,
+                            KEY_VFAILED to vfailed,
                         )
                     )
                 }
+                if (!ok) vfailed++
             }
-            return Result.success(workDataOf(KEY_VDONE to pending.size, KEY_VTOTAL to pending.size))
+            return Result.success(
+                workDataOf(KEY_VDONE to pending.size, KEY_VTOTAL to pending.size, KEY_VFAILED to vfailed)
+            )
         } finally {
             store.close()
             EmbedderManager.release()
@@ -67,14 +72,14 @@ class VideoIndexWorker(
         store: RetrievalStore,
         video: com.xueweijian.eg2media.media.MediaVideo,
         onFrame: suspend (Int, Int) -> Unit,
-    ) {
+    ): Boolean {
         val mmr = MediaMetadataRetriever()
         try {
             mmr.setDataSource(context, video.uri)
             val duration = video.durationMs.takeIf { it > 0 }
                 ?: mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
                 ?: 0L
-            if (duration <= 0) return
+            if (duration <= 0) return false
             val windows = FrameGrid.frames(duration)
             val prefix = "${video.id}|${Modality.VIDEO_FRAME.code}|"
             val existing = store.indexedIds().filter { it.startsWith(prefix) }.toSet()
@@ -100,8 +105,10 @@ class VideoIndexWorker(
                 onFrame(i + 1, windows.size)
             }
         } catch (e: Exception) {
-            // 单视频失败不拖垮整批
+            // 单视频失败不拖垮整批，但上报失败计数（不再静默 success）
             android.util.Log.w("VideoIndexWorker", "skip ${video.displayName}: ${e.message}")
+            false
+            return true
         } finally {
             runCatching { mmr.release() }
         }
@@ -140,6 +147,7 @@ class VideoIndexWorker(
         const val KEY_VTOTAL = "vtotal"
         const val KEY_FDONE = "fdone"
         const val KEY_FTOTAL = "ftotal"
+        const val KEY_VFAILED = "vfailed"
         const val UNIQUE_NAME = "video-index"
         const val TARGET_EDGE = 512
     }

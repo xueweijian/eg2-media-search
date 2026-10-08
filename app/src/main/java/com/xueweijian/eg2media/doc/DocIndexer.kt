@@ -41,16 +41,24 @@ class DocIndexer(private val context: Context) {
             runCatching { store.deleteBySource(sourceId, Modality.DOC_CHUNK) }
             chunks.forEachIndexed { i, c ->
                 val prefixed = Prompts.document(title = displayName, text = c.text)
-                val vec768 = EmbedderManager.embedText(context, prefixed)
-                store.upsert(
-                    RecordRef(sourceId, Modality.DOC_CHUNK, i.toLong(), i.toLong()),
-                    Mrl.truncateAndRenormalize(vec768, RetrievalStore.DEFAULT_DIMS),
-                    mapOf(
-                        "uri" to sourceId,
-                        "fn" to displayName,
-                        "ci" to i.toString(),
-                    ),
-                )
+                try {
+                    val vec768 = EmbedderManager.embedText(context, prefixed)
+                    store.upsert(
+                        RecordRef(sourceId, Modality.DOC_CHUNK, i.toLong(), i.toLong()),
+                        Mrl.truncateAndRenormalize(vec768, RetrievalStore.DEFAULT_DIMS),
+                        mapOf(
+                            "uri" to sourceId,
+                            "fn" to displayName,
+                            "ci" to i.toString(),
+                        ),
+                    )
+                } catch (e: Exception) {
+                    // 带上下文重抛：哪一块、多长、前缀形态——远程可诊断
+                    throw IllegalStateException(
+                        "doc块${i + 1}/${chunks.size} embed失败(len=${c.text.length}, fn=$displayName): ${e.message}",
+                        e,
+                    )
+                }
                 onChunk(i + 1, chunks.size)
             }
         } finally {

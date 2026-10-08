@@ -367,8 +367,16 @@ private fun IndexProgressRow(index: com.xueweijian.eg2media.ui.setup.IndexUi) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
+        index.failed -> Text(
+            "索引失败——点右上 ⚡ 跑诊断定位问题",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+
         index.finished -> Text(
-            "索引已就绪 ✓ 可以开始搜索",
+            if (index.failedCount > 0)
+                "索引就绪（${index.failedCount} 张失败已跳过）✓ 可以搜索"
+            else "索引已就绪 ✓ 可以开始搜索",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
         )
