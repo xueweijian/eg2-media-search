@@ -100,7 +100,10 @@ class MediaStorePipelineTest {
             assertEquals("content://media/external/images/media/$sourceId", display)
             engine.close()
         } finally {
-            runCatching { store?.delete(listOf(recordId)) }
+            val s = store
+            if (s != null) {
+                runCatching { s.delete(listOf(recordId)) }
+            }
             runCatching { resolver.delete(uri) }
             EmbedderManager.release()
         }
