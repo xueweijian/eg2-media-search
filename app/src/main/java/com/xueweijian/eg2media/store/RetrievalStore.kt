@@ -22,8 +22,14 @@ class RetrievalStore(
 
     private val store = SqliteVectorStore(context, DB_NAME, dims)
 
-    fun upsert(ref: RecordRef, vector512: FloatArray, extraMeta: Map<String, String> = emptyMap()) {
+    fun upsert(
+        ref: RecordRef,
+        vector512: FloatArray,
+        content: String,
+        extraMeta: Map<String, String> = emptyMap(),
+    ) {
         require(vector512.size == dims) { "vector dims ${vector512.size} != $dims" }
+        require(content.isNotBlank()) { "content required: SqliteVectorStore rejects empty content" }
         val meta = buildMap {
             put("uri", extraMeta["uri"] ?: "")
             put("mod", ref.modality.code)
@@ -35,7 +41,7 @@ class RetrievalStore(
             listOf(
                 RetrievalRecord(
                     RecordIds.encode(ref),
-                    emptyList(),
+                    listOf(com.google.mediapipe.tasks.core.TextPart(content)),
                     vector512,
                     meta,
                 )

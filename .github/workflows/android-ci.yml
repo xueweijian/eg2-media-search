@@ -88,24 +88,15 @@ jobs:
           target: google_apis
           emulator-options: -memory 4096 -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: |
-            set -e
-            # 先装两个 APK（connectedDebugAndroidTest 会卸载重装清数据，故用 am instrument 直跑）
             ./gradlew installDebug installDebugAndroidTest --no-daemon
-            # 推模型进 app 私有目录（debug 可 run-as）
             adb push ~/model/embeddinggemma-2-740m.litertlm /data/local/tmp/eg2.litertlm
             adb shell run-as com.xueweijian.eg2media mkdir -p files/models
             adb shell run-as com.xueweijian.eg2media cp /data/local/tmp/eg2.litertlm files/models/embeddinggemma-2-740m.litertlm
             adb shell run-as com.xueweijian.eg2media ls -la files/models
             adb shell rm /data/local/tmp/eg2.litertlm
-            # 直接跑 instrumented 测试（真实 embedding + 真实向量库）
-            # am instrument 测试失败时 exit code 仍可能为 0，必须解析输出
-            adb shell am instrument -w com.xueweijian.eg2media.test/androidx.test.runner.AndroidJUnitRunner \
-              | tee /tmp/instrument.log
-            if grep -qE "FAILURES!!!|INSTRUMENTATION_FAILED|Process crashed" /tmp/instrument.log; then
-              echo "#### instrumented 测试失败 ####"
-              exit 1
-            fi
-            grep -E "^OK \(|Tests run" /tmp/instrument.log || true
+            adb shell am instrument -w com.xueweijian.eg2media.test/androidx.test.runner.AndroidJUnitRunner > /tmp/inst.log 2>&1
+            cat /tmp/inst.log
+            ! grep -qE "FAILURES!!!|INSTRUMENTATION_FAILED|Process crashed" /tmp/inst.log
 
       - name: Upload e2e reports
         if: always()

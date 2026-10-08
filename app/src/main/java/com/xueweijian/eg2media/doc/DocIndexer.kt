@@ -46,7 +46,8 @@ class DocIndexer(private val context: Context) {
                     store.upsert(
                         RecordRef(sourceId, Modality.DOC_CHUNK, i.toLong(), i.toLong()),
                         Mrl.truncateAndRenormalize(vec768, RetrievalStore.DEFAULT_DIMS),
-                        mapOf(
+                        content = c.text,
+                        extraMeta = mapOf(
                             "uri" to sourceId,
                             "fn" to displayName,
                             "ci" to i.toString(),

@@ -46,7 +46,8 @@ class ImageIndexWorker(
                         store.upsert(
                             ref,
                             Mrl.truncateAndRenormalize(vec, RetrievalStore.DEFAULT_DIMS),
-                            mapOf("uri" to img.uri.toString()),
+                            content = img.uri.toString(),
+                            extraMeta = mapOf("uri" to img.uri.toString()),
                         )
                     } catch (e: Exception) {
                         // 单图失败不拖垮整批，但计数上报（损坏文件 / 编解码异常常见）

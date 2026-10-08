@@ -38,7 +38,8 @@ class RetrievalRoundTripTest {
             store.upsert(
                 RecordRef(srcId, Modality.DOC_CHUNK, 0, 0),
                 Mrl.truncateAndRenormalize(v, RetrievalStore.DEFAULT_DIMS),
-                mapOf("uri" to "test://$srcId", "fn" to "动物百科"),
+                content = text,
+                extraMeta = mapOf("uri" to "test://$srcId", "fn" to "动物百科"),
             )
             val q = EmbedderManager.embedQuery(ctx, "熊猫吃竹子")
             val engine = SearchEngineForTest(store)

@@ -93,7 +93,8 @@ class VideoIndexWorker(
                     store.upsert(
                         ref,
                         Mrl.truncateAndRenormalize(vec, RetrievalStore.DEFAULT_DIMS),
-                        mapOf(
+                        content = "${video.displayName} @${w.startMs / 1000}s",
+                        extraMeta = mapOf(
                             "uri" to video.uri.toString(),
                             "fn" to video.displayName,
                             "dur" to duration.toString(),
