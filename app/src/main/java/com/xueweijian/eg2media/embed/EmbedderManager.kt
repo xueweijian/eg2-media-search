@@ -56,11 +56,14 @@ object EmbedderManager {
         check(file.exists() && file.length() > 0) {
             "EG2 model missing at $file — push or download ${route(context).eg2File} first"
         }
-        val created = try {
-            create(context, file.absolutePath, Delegate.GPU).also { activeDelegate = Delegate.GPU }
-        } catch (e: Throwable) {
-            // GPU 驱动碎片化兜底（HANDOFF §0）
-            create(context, file.absolutePath, Delegate.CPU).also { activeDelegate = Delegate.CPU }
+        // 全 CPU 策略（v0.16，真机诊断 norm=0 案）：
+        // - Adreno GPU delegate 初始化"成功"但静默输出全零向量（norm=0.0000，dims=768 正常）
+        //   ——比崩溃更阴险，且 GPU 对文本塔毫无加速（模型卡：CPU 27.1ms vs GPU 25.9ms）
+        // - vision 塔已有独立 bug 强制 CPU（v0.15，static dimensions）
+        // - 模拟器 e2e 6/6 全过 = 全 CPU 路径已验证；模型卡 CPU benchmark 即官方主路径
+        // GPU 代码保留在 git 历史（v0.15 及之前），待 litertlm GPU 后端成熟再评估
+        val created = create(context, file.absolutePath, Delegate.CPU).also {
+            activeDelegate = Delegate.CPU
         }
         embedder = created
         return created
@@ -90,24 +93,45 @@ object EmbedderManager {
         return UniversalEmbedder.createFromOptions(context, options)
     }
 
-    fun activeDelegateName(): String = "${activeDelegate.name}+visionCPU"
+    fun activeDelegateName(): String = "CPU+visionCPU"
+
+    /** 零向量哨兵：GPU 案例证明 delegate 可能静默输出全零（dims 正常但 norm=0），
+     *  必须在出口拦截，否则零向量入库污染整个检索库 */
+    private fun validated(v: FloatArray, what: String): FloatArray {
+        val norm = com.xueweijian.eg2media.core.DiagSpec.l2norm(v)
+        require(norm > 0.1) {
+            "embedding near-zero (norm=%.6f, dims=%d) — delegate/model output invalid [%s]".format(
+                norm, v.size, what,
+            )
+        }
+        return v
+    }
 
     /** 检索查询编码（自动加 SearchQuery 前缀，HANDOFF §2） */
     fun embedQuery(context: Context, query: String): FloatArray = lock.withLock {
-        ensure(context).embedText(Prompts.searchQuery(query))
-            .embeddings()[0].floatEmbedding()
+        validated(
+            ensure(context).embedText(Prompts.searchQuery(query))
+                .embeddings()[0].floatEmbedding(),
+            "embedQuery",
+        )
     }
 
     /** 图片编码（视觉塔） */
     fun embedImage(context: Context, bitmap: Bitmap): FloatArray = lock.withLock {
-        ensure(context)
-            .embedImage(BitmapImageBuilder(bitmap).build())
-            .embeddings()[0].floatEmbedding()
+        validated(
+            ensure(context)
+                .embedImage(BitmapImageBuilder(bitmap).build())
+                .embeddings()[0].floatEmbedding(),
+            "embedImage",
+        )
     }
 
     /** 原始文本编码（入库文档用，前缀由调用方控制） */
     fun embedText(context: Context, text: String): FloatArray = lock.withLock {
-        ensure(context).embedText(text).embeddings()[0].floatEmbedding()
+        validated(
+            ensure(context).embedText(text).embeddings()[0].floatEmbedding(),
+            "embedText",
+        )
     }
 
     fun release() = lock.withLock {
