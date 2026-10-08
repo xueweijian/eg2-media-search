@@ -68,6 +68,10 @@ dependencies {
     // 文档模态：ML Kit 中文 OCR（bundled 离线，国内无 GMS 也可用）
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
 
+    // tasks-retrieval 1.1.0 的字节码引用 litertlm 0.18.x 的类（如 ActivationDataType），
+    // 其 POM 却声明 0.17.0-alpha1（无该类，运行时 NoClassDefFoundError）。显式 pin 0.18.0。
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")
+
     // 纯 JVM 单测（core 包第一性原子层，TDD）
     testImplementation("junit:junit:4.13.2")
 }

@@ -362,7 +362,7 @@ private fun IndexProgressRow(index: com.xueweijian.eg2media.ui.setup.IndexUi) {
         }
 
         index.enqueued -> Text(
-            "索引排队中（接通电源后自动开始）",
+            "索引排队中（电量充足即自动开始）",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -428,18 +428,18 @@ private fun hasMediaPermission(context: android.content.Context): Boolean {
 
 private fun scheduleIndexing(context: android.content.Context) {
     val wm = WorkManager.getInstance(context)
+    // 开箱即索：仅要求非低电（充电约束导致首装用户"排队中"永远不跑——真机实测教训）
     val constraints = Constraints.Builder()
-        .setRequiresCharging(true)
         .setRequiresBatteryNotLow(true)
         .build()
     wm.enqueueUniqueWork(
         ImageIndexWorker.UNIQUE_NAME,
-        ExistingWorkPolicy.KEEP,
+        ExistingWorkPolicy.UPDATE,
         OneTimeWorkRequestBuilder<ImageIndexWorker>().setConstraints(constraints).build(),
     )
     wm.enqueueUniqueWork(
         com.xueweijian.eg2media.index.VideoIndexWorker.UNIQUE_NAME,
-        ExistingWorkPolicy.KEEP,
+        ExistingWorkPolicy.UPDATE,
         OneTimeWorkRequestBuilder<com.xueweijian.eg2media.index.VideoIndexWorker>()
             .setConstraints(constraints)
             .build(),

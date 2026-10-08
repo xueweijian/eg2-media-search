@@ -53,7 +53,7 @@ fun VideosScreen(vm: VideoViewModel = viewModel()) {
             }
 
             ui.index.enqueued -> Text(
-                "视频索引排队中（接通电源后自动开始）",
+                "视频索引排队中（电量充足即自动开始）",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
