@@ -77,7 +77,10 @@ class DiagnosticsRunner(private val context: Context) {
             append("  \"golden_baseline\": $goldenBaseline,\n")
             append("  \"overall_pass\": $overallPass,\n")
             append("  \"failures\": [")
-            failures.forEachIndexed { i, f -> append(if (i == 0) "" else ", ") append("\"${f.replace("\"", "'")}\"") }
+            failures.forEachIndexed { i, f ->
+                append(if (i == 0) "" else ", ")
+                append("\"${f.replace("\"", "'")}\"")
+            }
             append("]\n}\n")
         }
     }
