@@ -61,7 +61,6 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import androidx.work.await
 import com.xueweijian.eg2media.index.ImageIndexWorker
 import com.xueweijian.eg2media.media.ImageLoader
 import com.xueweijian.eg2media.ui.search.SearchViewModel
@@ -453,7 +452,9 @@ private suspend fun scheduleIndexing(context: android.content.Context) {
     //   所以这里显式短路——无活跃任务才入队（空差集秒退无通知，差集由 observer 增量补）
     suspend fun shouldEnqueue(uniqueName: String): Boolean {
         val infos = runCatching {
-            wm.getWorkInfosForUniqueWork(uniqueName).await()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                wm.getWorkInfosForUniqueWork(uniqueName).get()
+            }
         }.getOrNull() ?: return true
         return infos.none {
             it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING
