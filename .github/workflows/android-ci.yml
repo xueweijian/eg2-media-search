@@ -98,7 +98,14 @@ jobs:
             adb shell run-as com.xueweijian.eg2media ls -la files/models
             adb shell rm /data/local/tmp/eg2.litertlm
             # 直接跑 instrumented 测试（真实 embedding + 真实向量库）
-            adb shell am instrument -w com.xueweijian.eg2media.test/androidx.test.runner.AndroidJUnitRunner
+            # am instrument 测试失败时 exit code 仍可能为 0，必须解析输出
+            adb shell am instrument -w com.xueweijian.eg2media.test/androidx.test.runner.AndroidJUnitRunner \
+              | tee /tmp/instrument.log
+            if grep -qE "FAILURES!!!|INSTRUMENTATION_FAILED|Process crashed" /tmp/instrument.log; then
+              echo "#### instrumented 测试失败 ####"
+              exit 1
+            fi
+            grep -E "^OK \(|Tests run" /tmp/instrument.log || true
 
       - name: Upload e2e reports
         if: always()

@@ -170,7 +170,7 @@ class DiagnosticsRunner(private val context: Context) {
         val model = EmbedderManager.modelFile(context)
         return Report(
             deviceModel = Build.MODEL ?: "?",
-            socModel = Build.SOC_MODEL ?: Build.HARDWARE,
+            socModel = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else Build.HARDWARE,
             androidVersion = Build.VERSION.RELEASE ?: "?",
             abi = Build.SUPPORTED_ABIS.firstOrNull() ?: "?",
             lowRam = runCatching {

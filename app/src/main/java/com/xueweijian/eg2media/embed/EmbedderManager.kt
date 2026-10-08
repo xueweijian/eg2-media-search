@@ -35,8 +35,11 @@ object EmbedderManager {
 
     fun route(context: Context): ModelRoute {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        // Build.SOC_MODEL 是 API 31+ 字段（e2e 在 API 30 模拟器抓到 NoSuchFieldError）；
+        // 低版本回退 Build.HARDWARE（SoC 型号串如 "qcom"，NPU 表匹配不上自然走通用版）
+        val socModel = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL else Build.HARDWARE
         return DeviceRouter.route(
-            socModel = Build.SOC_MODEL,
+            socModel = socModel,
             lowRam = am.isLowRamDevice,
             memoryClassMb = am.memoryClass,
         )
