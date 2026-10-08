@@ -75,7 +75,10 @@ object EmbedderManager {
                     .build()
             )
             .setTextDelegate(delegate)
-            .setVisionDelegate(delegate)
+            // vision 塔强制 CPU：litertlm 0.18.0 的 GPU vision executor 有静态维度 bug
+            // （真机 GPU 报 TensorBuffer must have all static dimensions，模拟器 CPU 全过；
+            // 模型卡实测 CPU 175ms/张 vs GPU 119ms，代价可接受）。文本塔保留 GPU 加速。
+            .setVisionDelegate(Delegate.CPU)
             .setAudioDelegate(Delegate.CPU)
             .setL2Normalize(true)
             // 740M 视觉塔只接受 70/140 个 image soft tokens（模型卡规格）；
@@ -87,7 +90,7 @@ object EmbedderManager {
         return UniversalEmbedder.createFromOptions(context, options)
     }
 
-    fun activeDelegateName(): String = activeDelegate.name
+    fun activeDelegateName(): String = "${activeDelegate.name}+visionCPU"
 
     /** 检索查询编码（自动加 SearchQuery 前缀，HANDOFF §2） */
     fun embedQuery(context: Context, query: String): FloatArray = lock.withLock {
