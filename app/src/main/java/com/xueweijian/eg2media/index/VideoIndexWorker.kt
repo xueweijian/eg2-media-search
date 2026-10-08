@@ -104,11 +104,11 @@ class VideoIndexWorker(
                 }
                 onFrame(i + 1, windows.size)
             }
+            return true
         } catch (e: Exception) {
             // 单视频失败不拖垮整批，但上报失败计数（不再静默 success）
             android.util.Log.w("VideoIndexWorker", "skip ${video.displayName}: ${e.message}")
             return false
-            return true
         } finally {
             runCatching { mmr.release() }
         }
