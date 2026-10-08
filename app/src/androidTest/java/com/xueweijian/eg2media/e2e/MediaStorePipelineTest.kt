@@ -104,7 +104,7 @@ class MediaStorePipelineTest {
             if (s != null) {
                 runCatching { s.delete(listOf(recordId)) }
             }
-            runCatching { resolver.delete(uri) }
+            runCatching { resolver.delete(uri, null, null) }
             EmbedderManager.release()
         }
     }
