@@ -9,6 +9,7 @@ import android.net.Uri
 object ImageLoader {
 
     fun decode(context: Context, uri: Uri, targetEdge: Int = 768): Bitmap? {
+        val resolver = context.contentResolver
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null

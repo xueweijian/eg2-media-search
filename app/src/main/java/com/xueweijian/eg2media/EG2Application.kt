@@ -1,6 +1,7 @@
 package com.xueweijian.eg2media
 
 import android.app.Application
+import com.xueweijian.eg2media.index.MediaIndexObserver
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date

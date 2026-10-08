@@ -32,4 +32,16 @@ if [ -n "$REAL" ]; then
   echo "======== 共 $(echo "$REAL" | wc -l) 处（另有 $((TOTAL_ERR - $(echo "$REAL" | wc -l))) 处依赖级联噪声交 CI） ========"
   exit 1
 fi
+
+# 本次改动文件里的 unresolved reference 人眼复核（CI 教训：漏 import/删局部变量
+# 会变成 unresolved 被"级联噪声"漏放）
+CHANGED=$(git -C "$ROOT" diff --name-only HEAD 2>/dev/null | grep '\.kt$' | sed "s|^|$ROOT/|")
+if [ -n "$CHANGED" ]; then
+  IMPORTISH=$(echo "$OUT" | grep ": error:" | grep -i "unresolved reference" | \
+    grep -viE "reference 'android'|reference 'androidx'|reference 'kotlin|reference 'kotlinx|reference 'java\.|reference 'Compose" || true)
+  if [ -n "$IMPORTISH" ]; then
+    echo "======== 改动文件的独特 unresolved（若属实则修，无关可忽略） ========"
+    echo "$IMPORTISH"
+  fi
+fi
 echo "语法冒烟通过 ✓（$TOTAL_ERR 处依赖级联噪声已交由 CI 判定）"
