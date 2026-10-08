@@ -55,9 +55,13 @@ class LowScoreReturnTest {
                 mine.size >= 3,
             )
         } finally {
-            docs.forEach { (_, tag) ->
-                runCatching { store.deleteBySource("$srcId-$tag", Modality.DOC_CHUNK) }
+            // 按 recordId 精确删除（deleteBySource 走 native metadata filter，实测跨类残留）
+            val ids = docs.map { (_, tag) ->
+                com.xueweijian.eg2media.core.RecordIds.encode(
+                    RecordRef("$srcId-$tag", Modality.DOC_CHUNK, 0, 0),
+                )
             }
+            runCatching { store.delete(ids) }
             store.close()
             EmbedderManager.release()
         }
