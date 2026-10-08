@@ -392,9 +392,13 @@ private fun IndexProgressRow(index: com.xueweijian.eg2media.ui.setup.IndexUi) {
         )
 
         index.finished -> Text(
-            if (index.failedCount > 0)
-                "索引就绪（${index.failedCount} 张失败已跳过）✓ 可以搜索"
-            else "索引已就绪 ✓ 可以开始搜索",
+            buildString {
+                append(
+                    if (index.failedCount > 0) "索引就绪（${index.failedCount} 张失败已跳过）✓"
+                    else "索引已就绪 ✓"
+                )
+                if (index.libSummary.isNotBlank()) append(" 库：${index.libSummary}")
+            },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
         )

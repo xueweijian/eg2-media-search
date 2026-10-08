@@ -31,6 +31,8 @@ data class IndexUi(
     val done: Int = 0,
     val total: Int = 0,
     val failedCount: Int = 0,
+    /** 索引后库内容快照（"共19条 img:9 vf:10"）——第一性原理：库的真值必须可见 */
+    val libSummary: String = "",
 )
 
 data class SetupUiState(
@@ -82,6 +84,7 @@ class SetupViewModel(app: Application) : AndroidViewModel(app) {
                 val done = prog?.getInt(ImageIndexWorker.KEY_DONE, 0) ?: 0
                 val total = prog?.getInt(ImageIndexWorker.KEY_TOTAL, 0) ?: 0
                 val failedCount = prog?.getInt(ImageIndexWorker.KEY_FAILED, 0) ?: 0
+                val libSummary = succeeded?.outputData?.getString(ImageIndexWorker.KEY_LIB) ?: ""
                 _state.value = _state.value.copy(
                     index = IndexUi(
                         enqueued = active?.state == WorkInfo.State.ENQUEUED,
@@ -91,6 +94,7 @@ class SetupViewModel(app: Application) : AndroidViewModel(app) {
                         done = done,
                         total = total,
                         failedCount = failedCount,
+                        libSummary = libSummary,
                     )
                 )
             }

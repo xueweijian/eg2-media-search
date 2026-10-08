@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
-import android.util.Size
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -39,16 +38,10 @@ import com.xueweijian.eg2media.media.ImageLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** 缩略图加载：系统 loadThumbnail 优先（MediaProvider 缓存，云图/HEIC 都稳），失败回退手动下采样 */
+/** 缩略图加载：统一走 ImageLoader 三级 fallback（v0.22：ImageDecoder→loadThumbnail→BitmapFactory） */
 object ThumbLoader {
-    fun load(context: Context, uriString: String, edge: Int = 320): Bitmap? {
-        val uri = Uri.parse(uriString)
-        return runCatching {
-            context.contentResolver.loadThumbnail(uri, Size(edge, edge), null)
-        }.getOrElse {
-            runCatching { ImageLoader.decode(context, uri, targetEdge = edge) }.getOrNull()
-        }
-    }
+    fun load(context: Context, uriString: String, edge: Int = 320): Bitmap? =
+        runCatching { ImageLoader.decode(context, Uri.parse(uriString), targetEdge = edge) }.getOrNull()
 }
 
 /** 结果卡片 / 图库通用的异步缩略图：IO 线程加载，加载中转圈，失败给占位图标（不再黑块静默） */

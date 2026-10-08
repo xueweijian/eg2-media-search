@@ -66,7 +66,15 @@ class VideoIndexWorker(
                 if (!ok) vfailed++
             }
             return Result.success(
-                workDataOf(KEY_VDONE to pending.size, KEY_VTOTAL to pending.size, KEY_VFAILED to vfailed)
+                workDataOf(
+                    KEY_VDONE to pending.size,
+                    KEY_VTOTAL to pending.size,
+                    KEY_VFAILED to vfailed,
+                    // v0.22 真值快照：视频索引后库内容随 output 上屏
+                    KEY_VLIB to (runCatching { store.stats() }.getOrNull()?.let { s ->
+                        "共${s.total}条 " + s.byModality.entries.joinToString(" ") { "${it.key}:${it.value}" }
+                    } ?: "库统计不可用"),
+                )
             )
         } finally {
             // store 是进程级单例不关闭（v0.19 并发修复）；只释放推理引擎
@@ -156,6 +164,7 @@ class VideoIndexWorker(
         const val KEY_FDONE = "fdone"
         const val KEY_FTOTAL = "ftotal"
         const val KEY_VFAILED = "vfailed"
+        const val KEY_VLIB = "vlib"
         const val UNIQUE_NAME = "video-index"
         const val TARGET_EDGE = 512
     }
