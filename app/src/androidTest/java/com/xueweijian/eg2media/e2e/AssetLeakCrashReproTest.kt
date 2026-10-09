@@ -25,20 +25,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 诊断测试（2026-10-09 真机 v0.24 "追加素材后经常闪退"取证，Round 26）：
+ * 回归网（2026-10-09 Round 26.5 破案后转正；原始取证记录见 git log afa43a0）：
  *
- * 假设链：
- * 1. 管理菜单 PickVisualMedia.ImageAndVideo 追加的 custom_uris 图片视频混存；
- * 2. effectiveImages 对【所有】custom uri 跑 queryImageByUri（DATE_MODIFIED/SIZE/MIME_TYPE
- *    为 files 表通用列，对视频 uri 同样查得通）→ 视频 uri 以"图片形态"混入图片集；
- *    对称地 queryVideoByUri 对图片 uri（display_name/duration/... 统一表时代同样通用）；
- * 3. GalleryViewModel 合并 imgs+vids 进同一个 LazyVerticalGrid，
- *    同一 custom uri 两条记录 scopeKey 相同（"u"+uri）→ duplicate key →
- *    measure 阶段 item 子组合抛 IllegalArgumentException → 与真机栈
- *    LazyLayoutBeyondBoundsModifierLocal.measure 吻合。
+ * 已证实根因：Android 10+ 统一 files 表，DATE_MODIFIED/SIZE/MIME_TYPE/DISPLAY_NAME/
+ * DURATION 对【任何】媒体 uri 都查得通——v0.24.0 的 effectiveImages/effectiveVideos
+ * 按 uri 形式瞎猜类型，custom 资产图视频互串，图库合并集 scopeKey 重复 →
+ * LazyVerticalGrid "Key was already used" 闪退（追加即崩 + 每次重开必崩）。
  *
- * 本测试只取证不改产品代码：t0 验证查询原语泄漏；t1 验证合并集 key 重复；
- * t2 真实组合 GalleryGridInline 复现崩溃（若崩溃，CI 日志即完整栈）。
+ * 修复：queryCustomAsset 按 mimeType 分发 + MediaStore 形式 uri 归一到数字 id 命名空间。
+ * 本测试三层断言：t0 分发原语 / t1 合集无跨集无重复 key / t2 真实组合图库不崩。
  */
 @RunWith(AndroidJUnit4::class)
 class AssetLeakCrashReproTest {
@@ -94,26 +89,33 @@ class AssetLeakCrashReproTest {
         }
     }
 
-    /** t0：查询原语泄漏——通用列查询对"异类" uri 是否放行 */
+    /** t0：MIME 分发原语——queryCustomAsset 必须按 mimeType 归类，绝不互串 */
     @Test
-    fun t0_查询原语_视频uri能否被当图片查通() {
+    fun t0_查询原语_mime分发正确() {
         val img = insertImage()
         val vid = insertVideo()
         try {
-            val vidAsImage = MediaStoreRepo.queryImageByUri(ctx, vid)
-            val imgAsVideo = MediaStoreRepo.queryVideoByUri(ctx, img)
-            println("DIAG vidAsImage=${vidAsImage != null} imgAsVideo=${imgAsVideo != null}")
-            println("DIAG vidAsImage.scopeKey=${vidAsImage?.scopeKey}")
-            println("DIAG imgAsVideo.scopeKey=${imgAsVideo?.scopeKey}")
-            // 假设成立 = 两者均非 null（不 assert 失败——本测试目标是取证，打印即证据）
+            val imgAsset = MediaStoreRepo.queryCustomAsset(ctx, img)
+            val vidAsset = MediaStoreRepo.queryCustomAsset(ctx, vid)
+            println("DIAG imgAsset=${imgAsset != null} vidAsset=${vidAsset != null}")
+            Assert.assertNotNull("图片 uri 查询失败", imgAsset)
+            Assert.assertNotNull("视频 uri 查询失败", vidAsset)
+            Assert.assertEquals("image/jpeg", imgAsset!!.mimeType)
+            Assert.assertFalse("图片不得归为视频", imgAsset.isVideo)
+            Assert.assertNotNull("图片应转出 MediaImage", imgAsset.toMediaImage())
+            Assert.assertNull("图片不得转出 MediaVideo", imgAsset.toMediaVideo())
+            Assert.assertNotNull("视频应转出 MediaVideo", vidAsset!!.toMediaVideo())
+            Assert.assertNull("视频不得转出 MediaImage", vidAsset.toMediaImage())
+            // MediaStore 形式 uri 应归一到数字 id 命名空间
+            Assert.assertTrue("MediaStore 形式 custom uri 应解析出数字 id", imgAsset.id >= 0)
         } finally {
             cleanup(img, vid)
         }
     }
 
-    /** t1：合并集 key 重复——effectiveImages ∪ effectiveVideos 中同一 custom uri 是否双现 */
+    /** t1：合集不变量——effectiveImages/effectiveVideos 无跨集泄漏、合并 scopeKey 无重复 */
     @Test
-    fun t1_合并集_同一custom_uri双现_key重复() = runBlocking {
+    fun t1_合集_无跨集泄漏_key无重复() = runBlocking {
         val img = insertImage()
         val vid = insertVideo()
         try {
@@ -124,13 +126,11 @@ class AssetLeakCrashReproTest {
             println("DIAG effectiveImages=${imgs.size} effectiveVideos=${vids.size} mergedKeys=${keys.size}")
             val imgUris = imgs.map { it.uri }
             val vidUris = vids.map { it.uri }
-            println("DIAG imgUri in images=${img in imgUris} imgUri in videos=${img in vidUris}")
-            println("DIAG vidUri in images=${vid in imgUris} vidUri in videos=${vid in vidUris}")
+            // 跨集泄漏 = v0.24.0 崩溃根因，双向都必须为零
+            Assert.assertFalse("图片 uri 不得泄漏进视频集", img in vidUris)
+            Assert.assertFalse("视频 uri 不得泄漏进图片集", vid in imgUris)
             val dup = keys.groupBy { it }.filterValues { it.size > 1 }.keys
-            println("DIAG duplicatedKeys=${dup.toList()}")
-            if (dup.isNotEmpty()) {
-                Assert.fail("假设证实：图库合并集存在重复 scopeKey → LazyVerticalGrid duplicate key 崩溃源。dup=$dup")
-            }
+            Assert.assertTrue("合并集 scopeKey 重复=$dup", dup.isEmpty())
         } finally {
             cleanup(img, vid)
         }
@@ -164,7 +164,10 @@ class AssetLeakCrashReproTest {
                 }
                 composeRule.waitForIdle()
                 Thread.sleep(1500) // 给重组/测量留时间——若 key 冲突，这里就是崩溃点
-                println("DIAG after add ok, items=${vm.items.value.size} NO CRASH")
+                val finalItems = vm.items.value
+                val dupKeys = finalItems.groupBy { it.scopeKey }.filterValues { it.size > 1 }.keys
+                println("DIAG after add ok, items=${finalItems.size} NO CRASH")
+                Assert.assertTrue("图库 items scopeKey 重复=$dupKeys", dupKeys.isEmpty())
             } finally {
                 cleanup(img2, vid2)
             }
