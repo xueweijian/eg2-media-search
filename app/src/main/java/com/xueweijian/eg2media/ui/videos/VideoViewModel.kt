@@ -121,7 +121,10 @@ class VideoViewModel(app: Application) : AndroidViewModel(app) {
         val ctx = getApplication<Application>()
         viewModelScope.launch {
             _state.value = _state.value.copy(allLoading = true)
-            val vids = withContext(Dispatchers.IO) { MediaStoreRepo.effectiveVideos(ctx) }
+            val vids = withContext(Dispatchers.IO) {
+                // v0.24.1 保险带：scopeKey 去重（Round 26.5 duplicate key 教训）
+                MediaStoreRepo.effectiveVideos(ctx).distinctBy { it.scopeKey }
+            }
             _state.value = _state.value.copy(allVideos = vids, allLoading = false)
         }
     }

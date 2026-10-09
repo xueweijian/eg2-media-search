@@ -73,7 +73,11 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
                         scopeKey = it.scopeKey,
                     )
                 }
-                (imgs + vids).sortedByDescending { it.dateMs }
+                (imgs + vids)
+                    // v0.24.1 保险带：任何来源的 scopeKey 重复（Round 26.5 曾致
+                    // LazyGrid duplicate key 闪退）都在进 UI 前被削掉
+                    .distinctBy { it.scopeKey }
+                    .sortedByDescending { it.dateMs }
             }
             _items.value = list
             _removedCount.value = withContext(Dispatchers.IO) {

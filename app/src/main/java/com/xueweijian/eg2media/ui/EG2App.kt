@@ -498,6 +498,9 @@ private fun hasMediaPermission(context: android.content.Context): Boolean {
 }
 
 internal suspend fun scheduleIndexing(context: android.content.Context) {
+    // v0.24.1：Round 26.5 污染记录自愈（幂等，进程内一次）——先清后入队，
+    // worker 差集看到干净库，孤儿资产以正确 key 重索引
+    com.xueweijian.eg2media.store.LegacyRecordPurge.purgeIfNeeded(context)
     val wm = WorkManager.getInstance(context)
     // 开箱即索：仅要求非低电（充电约束导致首装用户"排队中"永远不跑——真机实测教训）
     val constraints = Constraints.Builder()

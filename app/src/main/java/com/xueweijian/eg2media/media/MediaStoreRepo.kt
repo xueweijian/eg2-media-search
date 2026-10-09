@@ -131,64 +131,110 @@ object MediaStoreRepo {
     }
 
     /**
-     * v0.24：photo picker 自定义 uri 的元数据单查（picker uri 形如
-     * content://media/pick/…，末段不是 MediaStore id，必须按 uri 直查）。
-     * 查不到（已删除/云文件）返回 null，调用方跳过并留痕。
+     * v0.24.1（Round 26.5 根因修复）：custom uri 单查 + MIME 分发。
+     *
+     * Android 10+ 统一 files 表：DATE_MODIFIED/SIZE/MIME_TYPE 等是通用列，
+     * 对【任何】媒体 uri 都查得通——按 uri 形式猜图/视频必然互串
+     * （v0.24.0 每个 custom 资产在 effectiveImages/effectiveVideos 各出现一次，
+     * scopeKey 相同 → 图库 LazyVerticalGrid duplicate key 闪退，模拟器全栈复现实锤）。
+     * 现在按查询到的 mimeType 决定归属：video/ 前缀只进视频集，其余只进图片集。
+     *
+     * 基础列（mime/date/size）对所有 uri 形式可靠；displayName/duration 仅视频
+     * 二次查询（picker uri 的列支持面不明，失败给默认值不阻断）。
      */
-    fun queryImageByUri(context: Context, uri: Uri): MediaImage? {
-        val projection = arrayOf(
-            MediaStore.Images.Media.DATE_MODIFIED,
-            MediaStore.Images.Media.SIZE,
-            MediaStore.Images.Media.MIME_TYPE,
-        )
-        return runCatching {
-            context.contentResolver.query(uri, projection, null, null, null)?.use { c ->
-                if (!c.moveToFirst()) return@use null
-                MediaImage(
-                    id = -1L,
-                    uri = uri,
-                    dateModifiedMs = c.getLong(0) * 1000,
-                    sizeBytes = c.getLong(1),
-                    mimeType = c.getString(2) ?: "image/jpeg",
-                )
-            }
-        }.getOrNull()
+    data class CustomAsset(
+        val uri: Uri,
+        val isVideo: Boolean,
+        /** MediaStore 形式 uri → 真实数字 id（并入可见集命名空间）；picker 形式 → -1 */
+        val id: Long,
+        val dateModifiedMs: Long,
+        val sizeBytes: Long,
+        val mimeType: String,
+        val displayName: String,
+        val durationMs: Long,
+    ) {
+        fun toMediaImage(): MediaImage? =
+            if (isVideo || mimeType.startsWith("video/")) null else MediaImage(
+                id = id, uri = uri, dateModifiedMs = dateModifiedMs,
+                sizeBytes = sizeBytes, mimeType = mimeType,
+            )
+
+        fun toMediaVideo(): MediaVideo? =
+            if (!isVideo) null else MediaVideo(
+                id = id, uri = uri, displayName = displayName,
+                durationMs = durationMs, dateModifiedMs = dateModifiedMs,
+                sizeBytes = sizeBytes, mimeType = mimeType,
+            )
     }
 
-    fun queryVideoByUri(context: Context, uri: Uri): MediaVideo? {
-        val projection = arrayOf(
-            MediaStore.Video.Media.DISPLAY_NAME,
-            MediaStore.Video.Media.DURATION,
-            MediaStore.Video.Media.DATE_MODIFIED,
-            MediaStore.Video.Media.SIZE,
-            MediaStore.Video.Media.MIME_TYPE,
+    fun queryCustomAsset(context: Context, uri: Uri): CustomAsset? {
+        val baseProjection = arrayOf(
+            MediaStore.MediaColumns.MIME_TYPE,
+            MediaStore.MediaColumns.DATE_MODIFIED,
+            MediaStore.MediaColumns.SIZE,
         )
-        return runCatching {
-            context.contentResolver.query(uri, projection, null, null, null)?.use { c ->
-                if (!c.moveToFirst()) return@use null
-                MediaVideo(
-                    id = -1L,
-                    uri = uri,
-                    displayName = c.getString(0) ?: uri.lastPathSegment ?: "video",
-                    durationMs = c.getLong(1),
-                    dateModifiedMs = c.getLong(2) * 1000,
-                    sizeBytes = c.getLong(3),
-                    mimeType = c.getString(4) ?: "video/mp4",
+        val base = runCatching {
+            context.contentResolver.query(uri, baseProjection, null, null, null)?.use { c ->
+                if (!c.moveToFirst()) null
+                else Triple(
+                    c.getString(0)?.lowercase(),
+                    c.getLong(1) * 1000,
+                    c.getLong(2),
                 )
             }
-        }.getOrNull()
+        }.getOrNull() ?: return null
+        val (mimeRaw, dateMs, sizeBytes) = base
+        // 无 mime 无法分发（云占位/已删除），跳过——绝不猜类型
+        val mime = mimeRaw ?: return null
+        if (!mime.startsWith("video/") && !mime.startsWith("image/")) return null
+
+        val isVideo = mime.startsWith("video/")
+        var displayName: String = uri.lastPathSegment ?: "asset"
+        var durationMs = 0L
+        if (isVideo) {
+            // displayName/duration 仅视频二次查询（picker uri 列支持面不明，失败给默认值不阻断）
+            runCatching {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(
+                        MediaStore.MediaColumns.DISPLAY_NAME,
+                        MediaStore.Video.Media.DURATION,
+                    ),
+                    null, null, null,
+                )?.use { c ->
+                    if (c.moveToFirst()) {
+                        c.getString(0)?.let { displayName = it }
+                        durationMs = c.getLong(1)
+                    }
+                }
+            }
+        }
+        return CustomAsset(
+            uri = uri,
+            isVideo = isVideo,
+            id = com.xueweijian.eg2media.core.AssetMerge.mediaStoreUriId(uri.toString()) ?: -1L,
+            dateModifiedMs = dateMs,
+            sizeBytes = sizeBytes,
+            mimeType = mime,
+            displayName = displayName,
+            durationMs = durationMs,
+        )
     }
 
     /**
      * v0.24 生效资产集（官方三层语义）：MediaStore 可见 − removed ∪ custom − removed。
      * 索引 worker 与图库/视频网格统一走这里——追加素材后差集自动只 embed 新项。
+     * v0.24.1：custom 走 queryCustomAsset MIME 分发（图/视频不再互串）；
+     * removed 比对用归一 key（MediaStore 形式 custom uri = 数字 id 命名空间）。
      */
     fun effectiveImages(context: Context): List<MediaImage> {
         val removed = CustomAssetStore.removedKeys(context)
         val visible = queryImages(context).filter { it.scopeKey !in removed }
         val custom = CustomAssetStore.customUris(context)
-            .filter { AssetMerge.customKey(it) !in removed }
-            .mapNotNull { u -> runCatching { Uri.parse(u) }.getOrNull()?.let { queryImageByUri(context, it) } }
+            .mapNotNull { u -> runCatching { Uri.parse(u) }.getOrNull() }
+            .filter { AssetMerge.normalizedCustomKey(it.toString()) !in removed }
+            .mapNotNull { u -> queryCustomAsset(context, u) }
+            .mapNotNull { it.toMediaImage() }
         return AssetMerge.merge(visible, custom) { it.scopeKey }
     }
 
@@ -196,8 +242,10 @@ object MediaStoreRepo {
         val removed = CustomAssetStore.removedKeys(context)
         val visible = queryVideos(context).filter { it.scopeKey !in removed }
         val custom = CustomAssetStore.customUris(context)
-            .filter { AssetMerge.customKey(it) !in removed }
-            .mapNotNull { u -> runCatching { Uri.parse(u) }.getOrNull()?.let { queryVideoByUri(context, it) } }
+            .mapNotNull { u -> runCatching { Uri.parse(u) }.getOrNull() }
+            .filter { AssetMerge.normalizedCustomKey(it.toString()) !in removed }
+            .mapNotNull { u -> queryCustomAsset(context, u) }
+            .mapNotNull { it.toMediaVideo() }
         return AssetMerge.merge(visible, custom) { it.scopeKey }
     }
 }

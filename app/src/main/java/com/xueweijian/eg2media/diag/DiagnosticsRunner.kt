@@ -237,8 +237,10 @@ class DiagnosticsRunner(private val context: Context) {
         )
     }
 
-    /** 闪退日志尾部（无则 null）——随诊断 JSON 导出，远程定位闪退 */
-    private fun recentCrash(context: Context, maxChars: Int = 900): String? {
+    /** 闪退日志尾部（无则 null）——随诊断 JSON 导出，远程定位闪退。
+     *  v0.24.1：900→10000。此前尾部 900 恰好把 handler 写的异常头（类型+message）
+     *  切掉，Round 26.5 取证只能靠模拟器复现补全 */
+    private fun recentCrash(context: Context, maxChars: Int = 10_000): String? {
         val f = File(context.filesDir, "crash-log.txt")
         if (!f.exists()) return null
         val text = runCatching { f.readText() }.getOrNull() ?: return null
