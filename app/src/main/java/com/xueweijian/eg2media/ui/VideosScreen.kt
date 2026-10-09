@@ -17,6 +17,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -115,16 +117,15 @@ fun VideosScreen(vm: VideoViewModel = viewModel()) {
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text(if (ui.indexedVideos > 0) "搜视频画面…" else "索引完成后可搜") },
             trailingIcon = {
-                if (ui.loading) {
-                    Icon(
-                        androidx.compose.material.icons.Icons.Filled.Bolt,
+                when {
+                    ui.loading -> Icon(
+                        Icons.Filled.Bolt,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
-                } else if (ui.query.isNotEmpty()) {
-                    androidx.compose.material3.IconButton(onClick = { vm.onQueryChange("") }) {
+                    ui.query.isNotEmpty() -> androidx.compose.material3.IconButton(onClick = { vm.onQueryChange("") }) {
                         Icon(
-                            androidx.compose.material.icons.Icons.Filled.Close,
+                            Icons.Filled.Close,
                             contentDescription = "清空",
                             modifier = Modifier.size(18.dp),
                         )
@@ -185,7 +186,12 @@ fun VideosScreen(vm: VideoViewModel = viewModel()) {
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(ui.results, key = { "${it.uri}-${it.startMs}" }) { r ->
+                // grid.items 重载冲突：lazy 版用 count 形式（LazyListScope 成员，免 import）
+                items(
+                    count = ui.results.size,
+                    key = { i -> "${ui.results[i].uri}-${ui.results[i].startMs}" },
+                ) { i ->
+                    val r = ui.results[i]
                     Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
