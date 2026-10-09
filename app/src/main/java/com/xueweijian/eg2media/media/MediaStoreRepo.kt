@@ -188,7 +188,7 @@ object MediaStoreRepo {
         val visible = queryImages(context).filter { it.scopeKey !in removed }
         val custom = CustomAssetStore.customUris(context)
             .filter { AssetMerge.customKey(it) !in removed }
-            .mapNotNull { u -> runCatching(Uri.parse(u)).getOrNull()?.let { queryImageByUri(context, it) } }
+            .mapNotNull { u -> runCatching { Uri.parse(u) }.getOrNull()?.let { queryImageByUri(context, it) } }
         return AssetMerge.merge(visible, custom) { it.scopeKey }
     }
 
@@ -197,7 +197,7 @@ object MediaStoreRepo {
         val visible = queryVideos(context).filter { it.scopeKey !in removed }
         val custom = CustomAssetStore.customUris(context)
             .filter { AssetMerge.customKey(it) !in removed }
-            .mapNotNull { u -> runCatching(Uri.parse(u)).getOrNull()?.let { queryVideoByUri(context, it) } }
+            .mapNotNull { u -> runCatching { Uri.parse(u) }.getOrNull()?.let { queryVideoByUri(context, it) } }
         return AssetMerge.merge(visible, custom) { it.scopeKey }
     }
 }
