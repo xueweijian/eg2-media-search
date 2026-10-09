@@ -448,6 +448,19 @@ private fun ComingSoon(label: String) {
 }
 
 private fun hasMediaPermission(context: android.content.Context): Boolean {
+    // v0.23：Android 14 部分照片授权（用户在系统弹窗选了 N 张）下，
+    // READ_MEDIA_IMAGES 是 DENIED 而 READ_MEDIA_VISUAL_USER_SELECTED 是 GRANTED——
+    // 只检查前者会把部分授权误判为无权限（真机实锤：永远显示"第一步：授权相册"）。
+    // 官方 Edge Gallery 在部分授权下完全可用（查询/解码/索引系统自动只见被选照片）。
+    if (Build.VERSION.SDK_INT >= 34) {
+        val full = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.READ_MEDIA_IMAGES,
+        ) == PackageManager.PERMISSION_GRANTED
+        val partial = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+        ) == PackageManager.PERMISSION_GRANTED
+        return full || partial
+    }
     val perm = if (Build.VERSION.SDK_INT >= 33) {
         Manifest.permission.READ_MEDIA_IMAGES
     } else {
