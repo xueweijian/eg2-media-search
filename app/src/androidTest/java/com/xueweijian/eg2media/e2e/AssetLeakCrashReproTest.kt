@@ -120,10 +120,12 @@ class AssetLeakCrashReproTest {
             CustomAssetStore.addCustomUris(ctx, listOf(img, vid))
             val imgs = MediaStoreRepo.effectiveImages(ctx)
             val vids = MediaStoreRepo.effectiveVideos(ctx)
-            val keys = (imgs + vids).map { it.scopeKey }
+            val keys = imgs.map { it.scopeKey } + vids.map { it.scopeKey }
             println("DIAG effectiveImages=${imgs.size} effectiveVideos=${vids.size} mergedKeys=${keys.size}")
-            println("DIAG imgUri in images=${imgs.any { it.uri == img }} imgUri in videos=${vids.any { it.uri == img }}")
-            println("DIAG vidUri in images=${imgs.any { it.uri == vid }} vidUri in videos=${vids.any { it.uri == vid }}")
+            val imgUris = imgs.map { it.uri }
+            val vidUris = vids.map { it.uri }
+            println("DIAG imgUri in images=${img in imgUris} imgUri in videos=${img in vidUris}")
+            println("DIAG vidUri in images=${vid in imgUris} vidUri in videos=${vid in vidUris}")
             val dup = keys.groupBy { it }.filterValues { it.size > 1 }.keys
             println("DIAG duplicatedKeys=${dup.toList()}")
             if (dup.isNotEmpty()) {
