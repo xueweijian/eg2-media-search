@@ -200,8 +200,9 @@ class AssetLeakCrashReproTest {
                 cleanupStoreRecords(img1, vid1, img2, vid2)
             }
         } finally {
+            // img2/vid2 的清理在内层 finally（此处不可见其作用域）；正常路径四项全清
             cleanup(img1, vid1)
-            cleanupStoreRecords(img1, vid1, img2, vid2)
+            cleanupStoreRecords(img1, vid1)
         }
     }
 }
