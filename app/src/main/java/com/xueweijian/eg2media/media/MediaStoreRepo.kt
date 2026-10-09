@@ -137,7 +137,7 @@ object MediaStoreRepo {
      * 对【任何】媒体 uri 都查得通——按 uri 形式猜图/视频必然互串
      * （v0.24.0 每个 custom 资产在 effectiveImages/effectiveVideos 各出现一次，
      * scopeKey 相同 → 图库 LazyVerticalGrid duplicate key 闪退，模拟器全栈复现实锤）。
-     * 现在按查询到的 mimeType 决定归属：video/* 只进视频集，其余只进图片集。
+     * 现在按查询到的 mimeType 决定归属：video/ 前缀只进视频集，其余只进图片集。
      *
      * 基础列（mime/date/size）对所有 uri 形式可靠；displayName/duration 仅视频
      * 二次查询（picker uri 的列支持面不明，失败给默认值不阻断）。
