@@ -11,8 +11,10 @@ import android.provider.MediaStore
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.xueweijian.eg2media.core.AssetMerge
 import com.xueweijian.eg2media.media.CustomAssetStore
 import com.xueweijian.eg2media.media.MediaStoreRepo
+import com.xueweijian.eg2media.store.RetrievalStore
 import com.xueweijian.eg2media.ui.GalleryGridInline
 import com.xueweijian.eg2media.ui.GalleryViewModel
 import com.xueweijian.eg2media.ui.theme.EG2MediaTheme
@@ -43,17 +45,20 @@ class AssetLeakCrashReproTest {
     @get:Rule
     val composeRule = createComposeRule()
 
+    /** 诊断专用位图：绿底白斜纹——【刻意区别于】MediaStorePipelineTest.testBitmap
+     *  （青渐变红圆），否则两者向量近同，索引残留会抢走对方的"自身排第一"断言 */
     private fun testBitmap(): Bitmap {
         val size = 256
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         val paint = Paint()
-        for (y in 0 until size step 8) {
-            paint.color = Color.rgb(0, 120 + y / 4, 200 - y / 4)
-            canvas.drawRect(0f, y.toFloat(), size.toFloat(), (y + 8).toFloat(), paint)
+        paint.color = Color.rgb(30, 160, 60)
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
+        paint.color = Color.WHITE
+        paint.strokeWidth = 12f
+        for (d in -size until 2 * size step 48) {
+            canvas.drawLine(d.toFloat(), 0f, (d + size).toFloat(), size.toFloat(), paint)
         }
-        paint.color = Color.RED
-        canvas.drawCircle(size / 2f, size / 2f, size / 4f, paint)
         return bmp
     }
 
@@ -86,6 +91,20 @@ class AssetLeakCrashReproTest {
         runCatching {
             val prefs = ctx.getSharedPreferences("custom_assets", Context.MODE_PRIVATE)
             prefs.edit().clear().apply()
+        }
+    }
+
+    /** 清理本测试资产在共享向量库的残留（ContentObserver/worker 可能已把它们入库）——
+     *  共享 store 单例，不清理会干扰 MediaStorePipelineTest 的"自身排第一"断言 */
+    private fun cleanupStoreRecords(vararg uris: Uri) {
+        runCatching {
+            val store = RetrievalStore.get(ctx)
+            val keys = uris.flatMap { u ->
+                val s = u.toString()
+                listOf(s, AssetMerge.customKey(s), AssetMerge.mediaStoreUriId(s)?.toString() ?: "")
+            }.filter { it.isNotEmpty() }.toSet()
+            val stale = store.indexedIds().filter { it.substringBefore('|') in keys }
+            if (stale.isNotEmpty()) store.delete(stale)
         }
     }
 
@@ -153,12 +172,20 @@ class AssetLeakCrashReproTest {
             composeRule.waitForIdle()
             println("DIAG first render ok, items=${vm.items.value.size}")
 
-            // 模拟管理菜单「添加更多照片/视频」：picker 返回 图+视频 混合批次
+            // 模拟管理菜单「添加更多照片/视频」的 UI 效果：prefs 写入 + 强制刷新。
+            // 刻意不走 vm.addCustom——那会 enqueue 真实索引 worker，在共享 store 上
+            // 与其他测试并发写（Round 26.5 复现轮实锤会污染 MediaStorePipelineTest）。
+            // 崩溃路径 = 组合含重复 scopeKey 的 items，与 prefs 怎么写入无关。
             val img2 = insertImage()
             val vid2 = insertVideo()
             try {
-                composeRule.runOnUiThread { vm.addCustom(listOf(img1, vid1, img2, vid2)) }
-                // 等 refreshAfterAssetChange 完成（items 清空→重填）
+                composeRule.runOnUiThread {
+                    runBlocking {
+                        CustomAssetStore.addCustomUris(ctx, listOf(img1, vid1, img2, vid2))
+                    }
+                    vm.refresh(force = true)
+                }
+                // 等 refresh(force=true) 完成（items 清空→重填）
                 withTimeout(20_000) {
                     while (vm.items.value.size < 4) delay(200)
                 }
@@ -170,9 +197,11 @@ class AssetLeakCrashReproTest {
                 Assert.assertTrue("图库 items scopeKey 重复=$dupKeys", dupKeys.isEmpty())
             } finally {
                 cleanup(img2, vid2)
+                cleanupStoreRecords(img1, vid1, img2, vid2)
             }
         } finally {
             cleanup(img1, vid1)
+            cleanupStoreRecords(img1, vid1, img2, vid2)
         }
     }
 }
