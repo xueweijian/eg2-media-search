@@ -9,6 +9,7 @@ import com.xueweijian.eg2media.core.ChangeAggregator
 import com.xueweijian.eg2media.core.Modality
 import com.xueweijian.eg2media.core.Mrl
 import com.xueweijian.eg2media.core.RecordRef
+import com.xueweijian.eg2media.media.CustomAssetStore
 import com.xueweijian.eg2media.embed.EmbedderManager
 import com.xueweijian.eg2media.media.ImageLoader
 import com.xueweijian.eg2media.media.MediaStoreRepo
@@ -60,6 +61,8 @@ class MediaIndexObserver(private val context: Context) : ContentObserver(null) {
         val store = RetrievalStore.get(context)
         try {
             for (id in ids) {
+                // v0.24：被移除的资产不重索引（移除后照片编辑触发 observer 的场景）
+                if (id.toString() in CustomAssetStore.removedKeys(context)) continue
                 val img = MediaStoreRepo.queryImageById(context, id) ?: continue
                 val bmp = ImageLoader.decode(context, img.uri) ?: continue
                 try {

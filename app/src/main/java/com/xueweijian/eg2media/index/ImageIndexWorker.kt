@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.xueweijian.eg2media.core.AssetMerge
 import com.xueweijian.eg2media.core.Modality
 import com.xueweijian.eg2media.core.Mrl
 import com.xueweijian.eg2media.core.RecordRef
@@ -27,11 +28,10 @@ class ImageIndexWorker(
         if (!EmbedderManager.isModelReady(context)) return Result.retry()
         val store = RetrievalStore.get(context)
         try {
-            val all = MediaStoreRepo.queryImages(context)
-            val indexed = store.indexedIds()
-            val pending = all.filter {
-                RecordIdsKey(it.id.toString()) !in indexed
-            }
+            // v0.24：生效集 = 可见 ∪ 自定义 − 移除（追加素材后差集只 embed 新项）
+            val all = MediaStoreRepo.effectiveImages(context)
+            val indexedSrc = AssetMerge.indexedAssetKeys(store.indexedIds())
+            val pending = all.filter { it.scopeKey !in indexedSrc }
             if (pending.isEmpty()) return Result.success(workDataOf(KEY_DONE to 0, KEY_TOTAL to 0))
 
             // 前台化：LMK 不杀 + 通知栏常驻进度。挪到差集确认之后——
@@ -61,7 +61,7 @@ class ImageIndexWorker(
                     }
                     try {
                         val vec = EmbedderManager.embedImage(context, bmp)
-                        val ref = RecordRef(img.id.toString(), Modality.IMAGE, 0L, 0L)
+                        val ref = RecordRef(img.scopeKey, Modality.IMAGE, 0L, 0L)
                         store.upsert(
                             ref,
                             Mrl.truncateAndRenormalize(vec, RetrievalStore.DEFAULT_DIMS),
@@ -109,6 +109,7 @@ class ImageIndexWorker(
         com.xueweijian.eg2media.core.RecordIds.encode(
             RecordRef(sourceId, Modality.IMAGE, 0L, 0L)
         )
+    // v0.24：RecordIdsKey 差集用法已被 AssetMerge.indexedAssetKeys 取代（scopeKey 直接比对）
 
     companion object {
         const val KEY_DONE = "done"

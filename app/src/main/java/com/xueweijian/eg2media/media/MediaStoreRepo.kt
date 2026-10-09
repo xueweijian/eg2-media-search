@@ -4,6 +4,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
+import com.xueweijian.eg2media.core.AssetMerge
 
 data class MediaImage(
     val id: Long,
@@ -11,7 +12,11 @@ data class MediaImage(
     val dateModifiedMs: Long,
     val sizeBytes: Long,
     val mimeType: String,
-)
+) {
+    /** 资产 scopeKey：MediaStore=纯数字 id（兼容既有库），custom="u"+uri */
+    val scopeKey: String get() = if (id >= 0) id.toString() else AssetMerge.customKey(uri.toString())
+    val isCustom: Boolean get() = id < 0
+}
 
 data class MediaVideo(
     val id: Long,
@@ -21,7 +26,10 @@ data class MediaVideo(
     val dateModifiedMs: Long,
     val sizeBytes: Long,
     val mimeType: String,
-)
+) {
+    val scopeKey: String get() = if (id >= 0) id.toString() else AssetMerge.customKey(uri.toString())
+    val isCustom: Boolean get() = id < 0
+}
 
 /** 素材接入层（HANDOFF §4）：图片/视频走 MediaStore，ContentObserver 增量后置 */
 object MediaStoreRepo {
@@ -120,5 +128,76 @@ object MediaStoreRepo {
             )
         }
         return null
+    }
+
+    /**
+     * v0.24：photo picker 自定义 uri 的元数据单查（picker uri 形如
+     * content://media/pick/…，末段不是 MediaStore id，必须按 uri 直查）。
+     * 查不到（已删除/云文件）返回 null，调用方跳过并留痕。
+     */
+    fun queryImageByUri(context: Context, uri: Uri): MediaImage? {
+        val projection = arrayOf(
+            MediaStore.Images.Media.DATE_MODIFIED,
+            MediaStore.Images.Media.SIZE,
+            MediaStore.Images.Media.MIME_TYPE,
+        )
+        return runCatching {
+            context.contentResolver.query(uri, projection, null, null, null)?.use { c ->
+                if (!c.moveToFirst()) return@use null
+                MediaImage(
+                    id = -1L,
+                    uri = uri,
+                    dateModifiedMs = c.getLong(0) * 1000,
+                    sizeBytes = c.getLong(1),
+                    mimeType = c.getString(2) ?: "image/jpeg",
+                )
+            }
+        }.getOrNull()
+    }
+
+    fun queryVideoByUri(context: Context, uri: Uri): MediaVideo? {
+        val projection = arrayOf(
+            MediaStore.Video.Media.DISPLAY_NAME,
+            MediaStore.Video.Media.DURATION,
+            MediaStore.Video.Media.DATE_MODIFIED,
+            MediaStore.Video.Media.SIZE,
+            MediaStore.Video.Media.MIME_TYPE,
+        )
+        return runCatching {
+            context.contentResolver.query(uri, projection, null, null, null)?.use { c ->
+                if (!c.moveToFirst()) return@use null
+                MediaVideo(
+                    id = -1L,
+                    uri = uri,
+                    displayName = c.getString(0) ?: uri.lastPathSegment ?: "video",
+                    durationMs = c.getLong(1),
+                    dateModifiedMs = c.getLong(2) * 1000,
+                    sizeBytes = c.getLong(3),
+                    mimeType = c.getString(4) ?: "video/mp4",
+                )
+            }
+        }.getOrNull()
+    }
+
+    /**
+     * v0.24 生效资产集（官方三层语义）：MediaStore 可见 − removed ∪ custom − removed。
+     * 索引 worker 与图库/视频网格统一走这里——追加素材后差集自动只 embed 新项。
+     */
+    fun effectiveImages(context: Context): List<MediaImage> {
+        val removed = CustomAssetStore.removedKeys(context)
+        val visible = queryImages(context).filter { it.scopeKey !in removed }
+        val custom = CustomAssetStore.customUris(context)
+            .filter { AssetMerge.customKey(it) !in removed }
+            .mapNotNull { u -> runCatching(Uri.parse(u)).getOrNull()?.let { queryImageByUri(context, it) } }
+        return AssetMerge.merge(visible, custom) { it.scopeKey }
+    }
+
+    fun effectiveVideos(context: Context): List<MediaVideo> {
+        val removed = CustomAssetStore.removedKeys(context)
+        val visible = queryVideos(context).filter { it.scopeKey !in removed }
+        val custom = CustomAssetStore.customUris(context)
+            .filter { AssetMerge.customKey(it) !in removed }
+            .mapNotNull { u -> runCatching(Uri.parse(u)).getOrNull()?.let { queryVideoByUri(context, it) } }
+        return AssetMerge.merge(visible, custom) { it.scopeKey }
     }
 }

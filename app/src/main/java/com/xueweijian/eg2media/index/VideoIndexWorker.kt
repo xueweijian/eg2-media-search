@@ -34,12 +34,13 @@ class VideoIndexWorker(
         if (!EmbedderManager.isModelReady(context)) return Result.retry()
         val store = RetrievalStore.get(context)
         try {
-            val videos = MediaStoreRepo.queryVideos(context)
+            // v0.24：生效集 = 可见 ∪ 自定义 − 移除；差集 key = scopeKey
+            val videos = MediaStoreRepo.effectiveVideos(context)
             val indexedVideoIds = store.indexedIds()
                 .filter { it.contains("|${Modality.VIDEO_FRAME.code}|") }
                 .map { it.substringBefore('|') }
                 .toSet()
-            val pending = videos.filter { it.id.toString() !in indexedVideoIds }
+            val pending = videos.filter { it.scopeKey !in indexedVideoIds }
             if (pending.isEmpty()) return Result.success(workDataOf(KEY_VDONE to 0, KEY_VTOTAL to 0))
 
             // 前台化挪到差集确认之后（与图片 worker 一致：追加语义，空跑不弹通知）
@@ -96,11 +97,11 @@ class VideoIndexWorker(
                 ?: 0L
             if (duration <= 0) return false
             val windows = FrameGrid.frames(duration)
-            val prefix = "${video.id}|${Modality.VIDEO_FRAME.code}|"
+            val prefix = "${video.scopeKey}|${Modality.VIDEO_FRAME.code}|"
             val existing = store.indexedIds().filter { it.startsWith(prefix) }.toSet()
 
             windows.forEachIndexed { i, w ->
-                val ref = RecordRef(video.id.toString(), Modality.VIDEO_FRAME, w.startMs, w.endMs)
+                val ref = RecordRef(video.scopeKey, Modality.VIDEO_FRAME, w.startMs, w.endMs)
                 if (RecordIds.encode(ref) in existing) return@forEachIndexed
                 val bmp = decodeFrame(mmr, w.startMs) ?: return@forEachIndexed
                 try {

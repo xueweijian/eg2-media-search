@@ -26,14 +26,18 @@ class SearchEngine(context: Context) : AutoCloseable {
          * 显示 uri 解析（v0.21，官方 photoLibraryService.fetchAsset 模式的轻量版）：
          * MediaStore 媒体的 uri 由 id 确定性构造（content://media/external/…/media/{id}），
          * 零查询、永不丢；文档/音频等非 MediaStore 记录回退 metadata 的 uri。
-         * 此前只信 metadata——store 层一错位，显示与分数张冠李戴。
+         * v0.24：custom 资产 sourceId 非纯数字（"u"+uri），回退 meta["uri"]（即 picker uri）。
          */
         fun resolveDisplayUri(hit: Hit, meta: Map<String, String>): String? = runCatching {
             val ref = RecordIds.decode(hit.recordId)
+            val numeric = ref.sourceId.toLongOrNull()
             when (ref.modality) {
-                Modality.IMAGE -> "content://media/external/images/media/${ref.sourceId}"
+                Modality.IMAGE ->
+                    numeric?.let { "content://media/external/images/media/$it" }
+                        ?: meta["uri"]?.takeIf { it.isNotBlank() }
                 Modality.VIDEO_FRAME, Modality.VIDEO_AUDIO ->
-                    "content://media/external/video/media/${ref.sourceId}"
+                    numeric?.let { "content://media/external/video/media/$it" }
+                        ?: meta["uri"]?.takeIf { it.isNotBlank() }
                 else -> meta["uri"]?.takeIf { it.isNotBlank() }
             }
         }.getOrNull() ?: meta["uri"]?.takeIf { it.isNotBlank() }

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.xueweijian.eg2media.core.SearchHistory
 import com.xueweijian.eg2media.embed.EmbedderManager
 import com.xueweijian.eg2media.media.ImageLoader
 import com.xueweijian.eg2media.search.SearchEngine
@@ -28,6 +29,8 @@ data class SearchUiState(
     val error: String? = null,
     val modelReady: Boolean = false,
     val delegate: String = "",
+    /** v0.24：搜索历史（空查询时 chips 展示，Google app 同款） */
+    val history: List<String> = emptyList(),
 )
 
 data class SearchResult(
@@ -53,6 +56,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     private var engine: SearchEngine? = null
 
     init {
+        _state.value = _state.value.copy(history = readHistory())
         queryInput
             .debounce(120)
             .distinctUntilChanged()
@@ -65,6 +69,8 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
                     results = res,
                     error = null,
                 )
+                // v0.24：结果非空才记历史（搜出东西 = 值得重搜的词）
+                if (res.isNotEmpty()) recordHistory(q)
             }
             .launchIn(viewModelScope)
     }
@@ -80,6 +86,41 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(
             modelReady = EmbedderManager.isModelReady(ctx),
         )
+    }
+
+    // ---- v0.24 搜索历史（prefs 持久化，逻辑在 core.SearchHistory 纯函数）----
+
+    private fun readHistory(): List<String> {
+        val ctx = getApplication<Application>()
+        val prefs = ctx.getSharedPreferences("search_history", Context.MODE_PRIVATE)
+        val order = prefs.getString("order", null)
+        if (order != null) {
+            return order.split('\u0001').filter { it.isNotBlank() }
+        }
+        return prefs.getStringSet("q", emptySet())?.toList() ?: emptyList()
+    }
+
+    private fun recordHistory(q: String) {
+        val next = SearchHistory.record(_state.value.history, q)
+        if (next == _state.value.history) return
+        _state.value = _state.value.copy(history = next)
+        val ctx = getApplication<Application>()
+        // StringSet 无序：时间戳侧车表保"最新在前"语义
+        val prefs = ctx.getSharedPreferences("search_history", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putStringSet("q", next.toSet())
+            .putString("order", next.joinToString("\u0001"))
+            .apply()
+    }
+
+    fun removeHistoryEntry(q: String) {
+        val next = SearchHistory.remove(_state.value.history, q)
+        _state.value = _state.value.copy(history = next)
+        val ctx = getApplication<Application>()
+        ctx.getSharedPreferences("search_history", Context.MODE_PRIVATE).edit()
+            .putStringSet("q", next.toSet())
+            .putString("order", next.joinToString("\u0001"))
+            .apply()
     }
 
     private suspend fun doSearch(q: String): List<SearchResult> =

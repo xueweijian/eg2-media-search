@@ -8,6 +8,7 @@ import androidx.work.WorkManager
 import com.xueweijian.eg2media.core.Modality
 import com.xueweijian.eg2media.embed.EmbedderManager
 import com.xueweijian.eg2media.index.VideoIndexWorker
+import com.xueweijian.eg2media.media.MediaStoreRepo
 import com.xueweijian.eg2media.search.SearchEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -47,6 +48,9 @@ data class VideoUiState(
     val error: String? = null,
     val indexedVideos: Int = 0,
     val index: VideoIndexUi = VideoIndexUi(),
+    /** v0.24：无查询时显示全部生效视频（对齐图片栏体验） */
+    val allVideos: List<com.xueweijian.eg2media.media.MediaVideo> = emptyList(),
+    val allLoading: Boolean = false,
 )
 
 /** 视频模态：抽帧索引进度 + 文搜视频（命中时间段） */
@@ -61,6 +65,7 @@ class VideoViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         refreshCount()
+        refreshAllVideos()
         queryInput
             .debounce(150)
             .distinctUntilChanged()
@@ -108,6 +113,16 @@ class VideoViewModel(app: Application) : AndroidViewModel(app) {
                 .distinct()
                 .size
             _state.value = _state.value.copy(indexedVideos = n)
+        }
+    }
+
+    /** v0.24：全部生效视频（管理菜单增删后 GalleryViewModel 会广播刷新——这里进 tab 时重查即可） */
+    fun refreshAllVideos() {
+        val ctx = getApplication<Application>()
+        viewModelScope.launch {
+            _state.value = _state.value.copy(allLoading = true)
+            val vids = withContext(Dispatchers.IO) { MediaStoreRepo.effectiveVideos(ctx) }
+            _state.value = _state.value.copy(allVideos = vids, allLoading = false)
         }
     }
 

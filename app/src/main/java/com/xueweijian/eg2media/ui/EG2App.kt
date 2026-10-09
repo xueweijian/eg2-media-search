@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -29,6 +32,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -190,15 +195,38 @@ private fun SearchHome(
             placeholder = { Text(if (setup.modelReady) "搜索你的相册…" else "先准备索引引擎…") },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             trailingIcon = {
-                if (ui.loading) {
-                    Icon(Icons.Filled.Bolt, contentDescription = null,
+                when {
+                    // v0.24：一键清空（此前根本没有清除按钮——用户只能键盘逐字退格，
+                    // 每键触发防抖重排 = "删湖边漏最后一个字"的病灶）
+                    ui.loading -> Icon(Icons.Filled.Bolt, contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary)
+                    ui.query.isNotEmpty() -> IconButton(onClick = { vm.onQueryChange("") }) {
+                        Icon(Icons.Filled.Close, contentDescription = "清空",
+                            modifier = Modifier.size(18.dp))
+                    }
                 }
             },
             shape = RoundedCornerShape(28.dp),
             singleLine = true,
             enabled = setup.modelReady,
         )
+
+        // v0.24：历史 chips（Google app 同款）——空查询时展示最近 5 条有效搜索词
+        if (ui.query.isBlank() && ui.history.isNotEmpty() && hasPermission && setup.modelReady) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ui.history.forEach { h ->
+                    AssistChip(
+                        onClick = { vm.onQueryChange(h) },
+                        label = { Text(h, style = MaterialTheme.typography.labelMedium) },
+                    )
+                }
+            }
+        }
 
         when {
             !hasPermission -> StatusCard(
